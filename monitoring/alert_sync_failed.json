@@ -1,0 +1,22 @@
+{
+  "displayName": "__JOB__: sync job failed",
+  "documentation": {
+    "content": "The SharePoint->Drive link index sync (Cloud Run job __JOB__) logged sync_failed. New migrations will not appear in the index until it recovers (the app's live fallback still finds them). See README runbook: gcloud logging read for jsonPayload.event=sync_failed.",
+    "mimeType": "text/markdown"
+  },
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "sync_failed log entry",
+      "conditionMatchedLog": {
+        "filter": "resource.type=\"cloud_run_job\" AND resource.labels.job_name=\"__JOB__\" AND jsonPayload.event=\"sync_failed\""
+      }
+    }
+  ],
+  "alertStrategy": {
+    "notificationRateLimit": { "period": "3600s" },
+    "autoClose": "86400s"
+  },
+  "notificationChannels": ["__CHANNEL__"],
+  "enabled": true
+}

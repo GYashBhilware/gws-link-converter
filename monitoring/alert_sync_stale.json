@@ -1,0 +1,24 @@
+{
+  "displayName": "__JOB__: index is stale (no successful sync in 30 min)",
+  "documentation": {
+    "content": "No sync_ok log from Cloud Run job __JOB__ for 30 minutes (it should run every 5 minutes). Check Cloud Scheduler job __SCHEDULE__ and recent job executions.",
+    "mimeType": "text/markdown"
+  },
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "__METRIC__ absent for 30m",
+      "conditionAbsent": {
+        "filter": "resource.type=\"cloud_run_job\" AND metric.type=\"logging.googleapis.com/user/__METRIC__\"",
+        "duration": "1800s",
+        "aggregations": [
+          { "alignmentPeriod": "300s", "perSeriesAligner": "ALIGN_COUNT" }
+        ],
+        "trigger": { "count": 1 }
+      }
+    }
+  ],
+  "alertStrategy": { "autoClose": "86400s" },
+  "notificationChannels": ["__CHANNEL__"],
+  "enabled": true
+}

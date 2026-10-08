@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SharePoint → Google Drive link finder</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <h1 id="app-title">SharePoint / OneDrive → Google Drive link finder</h1>
+    <div id="me" class="muted"></div>
+  </header>
+
+  <main>
+    <section class="card">
+      <form id="single-form" autocomplete="off">
+        <label for="url">Paste a SharePoint or OneDrive link</label>
+        <div class="row">
+          <input id="url" name="url" type="text" required maxlength="4096"
+                 placeholder="https://contoso-my.sharepoint.com/personal/…/Documents/report.pdf">
+          <button type="submit">Find Drive link</button>
+        </div>
+      </form>
+      <details id="bulk">
+        <summary>Look up many links at once</summary>
+        <form id="bulk-form">
+          <label for="urls">One link per line (max <span id="max-bulk">200</span>)</label>
+          <textarea id="urls" rows="6"></textarea>
+          <button type="submit">Look up all</button>
+        </form>
+      </details>
+    </section>
+
+    <section id="results-card" class="card hidden">
+      <div class="row between">
+        <h2>Results</h2>
+        <button id="copy-all" type="button" class="secondary">Copy all Drive links</button>
+      </div>
+      <table id="results">
+        <thead><tr><th>Source</th><th>Result</th><th>Google Drive link</th><th>Details</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="folder-card" class="card hidden">
+      <h2 id="folder-title">Folder contents</h2>
+      <table id="folder">
+        <thead><tr><th>Type</th><th>Source</th><th>Google Drive link</th><th>Status</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <p class="muted small">
+      Data comes from the Google Workspace Data Migration audit log. Sharing links
+      (<code>/:x:/g/…?e=…</code>) can't be resolved; open them and paste the address-bar URL instead.
+      Having the Drive link doesn't grant access; normal Drive sharing still applies.
+    </p>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>
