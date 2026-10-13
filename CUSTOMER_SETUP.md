@@ -405,6 +405,34 @@ Done. App URL: https://<your-service>-....run.app
 
 ---
 
+### Step 8: Read the results (logs)
+Every run of the installer records **what was checked and what happened**:
+- At the end it prints a **summary** with each item marked **PASS**, **WARN** or **FAIL**, an overall **Result** (SUCCESS / FAILED / DRY RUN OK), and, if something failed, **what to do next**.
+- The same information is saved in the `logs/` folder (inside `gws-link-converter`):
+
+| File | What's inside |
+|---|---|
+| `logs/install-<date-time>-summary.txt` | The PASS / WARN / FAIL summary (easy to read or email) |
+| `logs/install-<date-time>.log` | Everything that was printed during the run (for support) |
+| `logs/install-<date-time>-summary.json` | The same summary in machine-readable form |
+
+- It is also written to **Cloud Logging** in your project (log name **`link-finder-install`**; failed runs are marked **ERROR**). To see it: Google Cloud console → **Logging → Logs Explorer** → search `logName:"link-finder-install"`.
+
+To see the latest summary in Cloud Shell:
+```bash
+ls -t logs/*-summary.txt | head -1 | xargs cat
+```
+
+**Health check at any time** (changes nothing):
+```bash
+./install.sh verify
+```
+It checks that the website is running, sign-in is enforced, anonymous visitors are blocked, the copy job ran successfully, the schedules are on, the lookup data is fresh, and alerts are configured. Each item is marked PASS / WARN / FAIL.
+
+> When asking for help, send the **summary file**. It contains no passwords.
+
+---
+
 # Stage 3 — Roll out
 1. Send employees the **App URL**.
 2. They sign in with their **company Google account**.
@@ -430,6 +458,8 @@ Run it 🔁 after each migration wave, 🔁 a few days before cutover, and 🔁 
 |---|---|
 | Change a setting | `./install.sh` (old answers are the defaults) |
 | Install a new version | Unzip the new package, copy in your `deploy.env`, run `./install.sh --config deploy.env --yes` |
+| Check everything is healthy | `./install.sh verify` |
+| See the latest install/health result | Open the newest `logs/install-…-summary.txt` file (see Stage 2, Step 8) |
 | Check the copy job | `gcloud run jobs executions list --job=link-converter-sync --region=<region>` |
 | Force a refresh now | `gcloud run jobs execute link-converter-sync --region=<region> --wait` |
 | Preview an uninstall | `./uninstall.sh` |

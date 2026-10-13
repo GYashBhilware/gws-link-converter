@@ -6,6 +6,11 @@
 #   ./install.sh --config FILE       # non-interactive: use an existing config file
 #   ./install.sh --dry-run           # ask questions + preflight only (no changes)
 #   ./install.sh preflight [--config FILE]   # checks only
+#   ./install.sh verify [--config FILE]      # health check of an existing install
+#
+# Every run writes logs/install-<time>.log (full output), a PASS/WARN/FAIL summary
+# (logs/install-<time>-summary.txt + .json) and, when possible, one Cloud Logging
+# entry (log name: link-finder-install) in the project.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -13,14 +18,16 @@ CONFIG=deploy.env
 INTERACTIVE=1
 DEPLOY=1
 ASSUME_YES=0
+MODE=install
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --config) CONFIG=$2; INTERACTIVE=0; shift 2 ;;
     --out) CONFIG=$2; shift 2 ;;
-    --dry-run) DEPLOY=0; shift ;;
+    --dry-run) DEPLOY=0; MODE=dry-run; shift ;;
     --yes|-y) ASSUME_YES=1; shift ;;
-    preflight) INTERACTIVE=0; DEPLOY=0; shift ;;
-    -h|--help) sed -n 2,9p "$0"; exit 0 ;;
+    preflight) INTERACTIVE=0; DEPLOY=0; MODE=preflight; shift ;;
+    verify) INTERACTIVE=0; DEPLOY=0; MODE=verify; shift ;;
+    -h|--help) sed -n 2,14p "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -38,11 +45,48 @@ confirm() {  # prompt -> 0 if yes
 PY=python3
 [[ -x .venv/bin/python ]] && PY=.venv/bin/python
 
+# ---- logging: per-run log + PASS/WARN/FAIL results + summary on exit ------------
+TS=$(date -u +%Y%m%d-%H%M%S)
+mkdir -p logs
+LOG="logs/install-$TS.log"
+SUMMARY="logs/install-$TS-summary.txt"
+export RESULTS_FILE="logs/install-$TS.results.tsv"
+: > "$RESULTS_FILE"
+: > "$LOG"
+rec() {  # stage, level, check, detail
+  local color; case "$2" in PASS) color=32;; WARN) color=33;; INFO) color=36;; *) color=31;; esac
+  printf '  \033[%sm%s\033[0m  %s%s\n' "$color" "$2" "$3" "${4:+ - $4}"
+  printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "${4:-}" >> "$RESULTS_FILE"
+}
+finish() {
+  local code=$?
+  set +e
+  python3 -m tools.install_summary "$RESULTS_FILE" "$SUMMARY" "$code" "$MODE" "$LOG"
+  # Best effort: one structured entry in Cloud Logging so others can see the outcome.
+  if [[ -n "${PROJECT_ID:-}" && -f "${SUMMARY%.txt}.json" ]]; then
+    local sev=INFO; [[ $code -ne 0 ]] && sev=ERROR
+    grep -q $'\tFAIL\t' "$RESULTS_FILE" && sev=ERROR
+    timeout 30 gcloud logging write link-finder-install "$(cat "${SUMMARY%.txt}.json")" \
+      --payload-type=json --severity="$sev" --project="$PROJECT_ID" --quiet >/dev/null 2>&1 &&
+      echo "Also logged to Cloud Logging (log name: link-finder-install) in $PROJECT_ID."
+  fi
+  sleep 0.3  # let the log tee flush
+  exit $code
+}
+trap finish EXIT
+start_log() {  # from here on, everything printed is also written to $LOG
+  exec > >(tee -a "$LOG") 2>&1
+}
+
 # ---- prerequisites ------------------------------------------------------------
-command -v gcloud >/dev/null || { echo "gcloud CLI not found (use Cloud Shell)." >&2; exit 1; }
-command -v python3 >/dev/null || { echo "python3 not found." >&2; exit 1; }
-if [[ -z "$(gcloud auth print-access-token 2>/dev/null)" ]]; then
-  echo "Not signed in to gcloud. Run: gcloud auth login" >&2; exit 1
+if command -v gcloud >/dev/null; then rec prereq PASS "gcloud CLI installed"
+else rec prereq FAIL "gcloud CLI installed" "use Google Cloud Shell"; exit 1; fi
+if command -v python3 >/dev/null; then rec prereq PASS "python3 installed"
+else rec prereq FAIL "python3 installed"; exit 1; fi
+if [[ -n "$(gcloud auth print-access-token 2>/dev/null)" ]]; then
+  rec prereq PASS "signed in to gcloud" "$(gcloud config get-value account 2>/dev/null)"
+else
+  rec prereq FAIL "signed in to gcloud" "run: gcloud auth login"; exit 1
 fi
 
 if [[ $INTERACTIVE == 1 ]]; then
@@ -136,28 +180,59 @@ EOF
   } > "$CONFIG"
   echo
   bold "Saved $CONFIG"
+  rec config PASS "answers saved" "$CONFIG"
 fi
 
-[[ -f "$CONFIG" ]] || { echo "Config $CONFIG not found." >&2; exit 1; }
+if [[ -f "$CONFIG" ]]; then
+  [[ $INTERACTIVE == 1 ]] || rec config PASS "config file found" "$CONFIG"
+else
+  rec config FAIL "config file found" "$CONFIG missing - run ./install.sh"; exit 1
+fi
+# shellcheck disable=SC1090
+source "$CONFIG"
+start_log
+echo "=== Link Finder installer: mode=$MODE, $(date -u +%FT%TZ), config=$CONFIG ==="
+sed 's/^/  /' "$CONFIG"
+
+if [[ $MODE == verify ]]; then
+  bold "Health check"
+  RESULTS_STAGE=verify GCP_PROJECT=x BQ_SOURCE_TABLE=x.y.z $PY -m tools.verify --config "$CONFIG"
+  exit $?
+fi
 echo
 bold "Settings"
 ./setup.sh --config "$CONFIG" show | sed 's/^/  /' | grep -v '_env='
 echo
 bold "Preflight checks"
-GCP_PROJECT=x BQ_SOURCE_TABLE=x.y.z $PY -m tools.preflight check --config "$CONFIG" ||
+RESULTS_STAGE=preflight GCP_PROJECT=x BQ_SOURCE_TABLE=x.y.z $PY -m tools.preflight check --config "$CONFIG" ||
   { echo "Fix the FAIL items (edit $CONFIG or re-run ./install.sh) and try again." >&2; exit 1; }
 
-[[ $DEPLOY == 1 ]] || { echo "Dry run: nothing was changed."; exit 0; }
+if [[ $DEPLOY != 1 ]]; then
+  rec result INFO "nothing was changed" "$MODE"
+  exit 0
+fi
 echo
-confirm "Deploy now? This creates/updates the resources listed above" || { echo "Not deployed."; exit 0; }
+if ! confirm "Deploy now? This creates/updates the resources listed above"; then
+  rec deploy WARN "deployment" "not confirmed - nothing was changed"
+  exit 0
+fi
 PY=$PY ./setup.sh --config "$CONFIG"
 echo
 bold "Running the first sync (backfill) ..."
-source "$CONFIG"
-gcloud run jobs execute "${JOB_NAME:-${NAME_PREFIX:-link-converter}-sync}" --project="$PROJECT_ID" \
-  --region="$REGION" --wait || \
-  echo "First sync failed - check: gcloud run jobs executions list --region=$REGION"
-URL=$(gcloud run services describe "$SERVICE_NAME" --project="$PROJECT_ID" --region="$REGION" --format='value(status.url)')
+JOB=${JOB_NAME:-${NAME_PREFIX:-link-converter}-sync}
+if gcloud run jobs execute "$JOB" --project="$PROJECT_ID" --region="$REGION" --wait --quiet; then
+  rec sync PASS "first sync (backfill)" "$JOB"
+else
+  rec sync FAIL "first sync (backfill)" "check: gcloud run jobs executions list --job=$JOB --region=$REGION"
+fi
+echo
+bold "Health check"
+RESULTS_STAGE=verify GCP_PROJECT=x BQ_SOURCE_TABLE=x.y.z $PY -m tools.verify --config "$CONFIG" || true
+URL=$(gcloud run services describe "$SERVICE_NAME" --project="$PROJECT_ID" --region="$REGION" \
+      --format='value(status.url)' --quiet)
+rec result INFO "app URL" "$URL"
 echo
 bold "Done. App URL: $URL"
 echo "Users of ${ALLOWED_DOMAINS} sign in with their Google account. IAP access can take a few minutes to apply."
+grep -q $'\tFAIL\t' "$RESULTS_FILE" && exit 1
+exit 0

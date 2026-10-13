@@ -234,6 +234,7 @@ Load settings first: `set -a; source deploy.env; set +a`
 
 | Task | Command |
 |---|---|
+| Full health check (PASS/WARN/FAIL) | `./install.sh verify` |
 | Service status / revision | `gcloud run services describe "$SERVICE_NAME" --region="$REGION" --format='value(status.latestReadyRevisionName,status.url)'` |
 | Recent sync runs | `gcloud run jobs executions list --job="$JOB_NAME" --region="$REGION" --limit=5` |
 | Run a sync now | `gcloud run jobs execute "$JOB_NAME" --region="$REGION" --wait` |
@@ -245,6 +246,16 @@ Load settings first: `set -a; source deploy.env; set +a`
 | Upgrade to a new package | Unzip, copy in `deploy.env`, `./install.sh --config deploy.env --yes` (idempotent; schema changes are additive) |
 | **Rollback** | `gcloud run services update-traffic "$SERVICE_NAME" --region="$REGION" --to-revisions=<previous-revision>=100` |
 | Uninstall preview / apply | `./uninstall.sh` / `./uninstall.sh --yes [--delete-index]` |
+
+**Install / health-check logging:**
+- Every `install.sh` run (install, `--dry-run`, `preflight`, `verify`) writes:
+  - `logs/install-<UTC time>.log`: the full console output (starts once the config is known);
+  - `logs/install-<UTC time>.results.tsv`: one line per check (`stage, PASS|WARN|FAIL|INFO, check, detail`), written by `install.sh` (prerequisites, config, sync), `tools/preflight.py`, `setup.sh` (each step with its duration) and `tools/verify.py`;
+  - `logs/install-<UTC time>-summary.txt` / `.json`: an overall result (SUCCESS / FAILED / DRY RUN OK), counts, and the next action on failure.
+- Best effort: one structured entry in **Cloud Logging**, log name `link-finder-install` (severity ERROR on failure). Query: `gcloud logging read 'logName:"link-finder-install"' --freshness=7d --format='value(timestamp,severity,jsonPayload.mode,jsonPayload.result)'`.
+- `setup.sh` run directly prints `PASS step <name> - <seconds>s` or `FAIL step <name> - exit code …` and stops at the first failing step. With `RESULTS_FILE` set, it appends to that file.
+- Health check: `./install.sh verify` (or `python3 -m tools.verify --config deploy.env`) checks the service is ready, IAP is enabled, anonymous access is blocked, the IAP domain policy, the sync job and its last run, schedules, index tables, data freshness (≤ 30 min) and alert policies. It exits 1 on any FAIL.
+- `logs/` is git-ignored and contains no secrets.
 
 **Alerts** (if `ALERT_EMAIL` is set):
 - `<job>: sync job failed`: a `sync_failed` log line was written.

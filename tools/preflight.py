@@ -12,6 +12,7 @@
 """
 
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -135,7 +136,12 @@ class Report:
     self.rows = []
 
   def add(self, level, name, detail=""):
+    detail = " ".join(str(detail or "").split())  # one line, for logs
     self.rows.append((level, name, detail))
+    out = os.environ.get("RESULTS_FILE")
+    if out:  # machine-readable record for install.sh's summary
+      with open(out, "a", encoding="utf-8") as f:
+        f.write(f"{os.environ.get('RESULTS_STAGE', 'check')}\t{level}\t{name}\t{detail}\n")
     color = {"PASS": "\033[32m", "WARN": "\033[33m", "FAIL": "\033[31m"}[level]
     print(f"  {color}{level}\033[0m  {name}" + (f" - {detail}" if detail else ""), flush=True)
 

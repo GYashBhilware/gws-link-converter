@@ -214,10 +214,33 @@ job_env=$JOB_ENV
 EOF
 }
 
+record() {  # level, name, detail -> results file (install.sh summary) + console
+  local color; case "$1" in PASS) color=32;; WARN) color=33;; *) color=31;; esac
+  printf '  \033[%sm%s\033[0m  %s%s\n' "$color" "$1" "$2" "${3:+ - $3}"
+  [[ -n "${RESULTS_FILE:-}" ]] && printf 'deploy\t%s\t%s\t%s\n' "$1" "$2" "$3" >> "$RESULTS_FILE"
+  return 0
+}
+
 steps=("$@")
 [[ ${#steps[@]} -eq 0 ]] && steps=(apis iam schema service iap job schedule alerts)
 for s in "${steps[@]}"; do
   echo "=== step: $s ==="
-  "step_$s"
+  if ! declare -F "step_$s" >/dev/null; then
+    record FAIL "step $s" "unknown step (valid: apis iam schema service iap job schedule alerts show)"
+    exit 2
+  fi
+  t0=$SECONDS
+  # Run each step in a subshell with errexit ON (not inside an `if`, which would
+  # disable errexit), so the first failing command fails the step.
+  set +e
+  ( set -e; "step_$s" )
+  rc=$?
+  set -e
+  if [[ $rc -ne 0 ]]; then
+    record FAIL "step $s" "exit code $rc after $((SECONDS - t0))s - see the messages above"
+    echo "=== stopped at step: $s ===" >&2
+    exit "$rc"
+  fi
+  [[ "$s" == show ]] || record PASS "step $s" "$((SECONDS - t0))s"
 done
 echo "=== done: ${steps[*]} ==="
