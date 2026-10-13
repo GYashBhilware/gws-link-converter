@@ -15,6 +15,115 @@ It runs **inside your own Google Cloud project**. Your data never leaves your or
 
 ---
 
+## How it works (architecture)
+
+### The big picture
+```mermaid
+flowchart LR
+  subgraph M365["Microsoft 365"]
+    SP["SharePoint / OneDrive files"]
+  end
+  subgraph GWS["Google Workspace"]
+    MIG["Data Migration service"]
+    DRV["Google Drive / shared drives"]
+    LOG["Audit log"]
+  end
+  subgraph GCP["Your Google Cloud project"]
+    EXP[("BigQuery: export dataset - activity table")]
+    SCH["Cloud Scheduler - every 5 min + nightly"]
+    JOB["Cloud Run job - sync"]
+    IDX[("BigQuery: migration_lookup - lookup tables")]
+    APP["Cloud Run service - Link Finder website"]
+    IAP["Identity-Aware Proxy - Google sign-in"]
+    MON["Cloud Monitoring - email alerts"]
+  end
+  USER["Employee browser"]
+  ADM["Admin in Cloud Shell - optional link collection"]
+  GRAPH["Microsoft Graph - read-only"]
+
+  SP -->|"files copied"| MIG --> DRV
+  MIG -->|"old link + new link"| LOG
+  LOG -->|"BigQuery Export"| EXP
+  SCH --> JOB
+  EXP --> JOB --> IDX
+  USER --> IAP --> APP --> IDX
+  APP -.->|"newest records"| EXP
+  JOB -.-> MON
+  ADM --> GRAPH
+  ADM -->|"sharing links"| IDX
+```
+
+In plain words:
+1. **Files move:** the Data Migration service copies files from SharePoint/OneDrive to Google Drive.
+2. **Google keeps a diary:** for every file it writes an audit-log record with the **old link** and the **new link**.
+3. **The diary goes to BigQuery:** the BigQuery Export (prerequisite P9) copies those records into the `activity` table.
+4. **A robot tidies it up:** every 5 minutes the **sync job** copies new migration records into the app's own **lookup tables**.
+5. **People ask:** an employee signs in, pastes an old link, and the **website** looks up the new link.
+
+### The building blocks
+| Component | What it is | What it does here | Created by |
+|---|---|---|---|
+| BigQuery export dataset (`activity` table) | Google's copy of the Workspace audit log | Source of truth: every migrated file, old link → new link | You (P9) |
+| BigQuery dataset `migration_lookup` | The app's own small database | `migration_events` (one row per migrated file), `share_links` (sharing link → file), sync bookmark | Installer |
+| Cloud Run **job** (sync) | A program that runs and stops | Copies only new records, never creates duplicates | Installer |
+| Cloud Scheduler | An alarm clock | Starts the sync every 5 minutes, plus a nightly catch-up | Installer |
+| Cloud Run **service** | The website | Cleans pasted links, decodes sharing links, looks them up | Installer |
+| Identity-Aware Proxy (IAP) | A security guard | Only your company accounts can open the website | Installer |
+| Cloud Monitoring | A smoke alarm | Emails an admin if the sync fails or stops | Installer |
+| Link-collection tool (optional) | A script run by an admin | Reads sharing links from Microsoft (read-only) before SharePoint is switched off | You run it (P12) |
+
+### What happens when someone pastes a link
+```mermaid
+sequenceDiagram
+  participant E as Employee
+  participant G as IAP sign-in
+  participant A as Link Finder
+  participant L as Lookup tables
+  participant R as Export table
+  E->>G: open the app
+  G->>E: sign in with company Google account
+  G->>A: let the user in (signed identity)
+  E->>A: paste old link
+  A->>A: clean the link - or decode a sharing link
+  A->>L: look up the new link
+  alt found
+    L-->>A: Google Drive link
+  else migrated in the last few minutes
+    A->>R: check the newest records
+    R-->>A: Google Drive link
+  end
+  A-->>E: Migrated + Drive link, or the reason why not
+```
+
+Which links it understands:
+| Link type | Example shape | How it is resolved |
+|---|---|---|
+| Address-bar link | `…/personal/<user>/Documents/Report.pdf` or `/my?…&id=…` | Matched by file path |
+| Office viewer link | `…/_layouts/15/Doc.aspx?sourcedoc={ID}` | Matched by SharePoint file ID |
+| Sharing link / Outlook modern attachment | `…/:x:/g/personal/<user>/<code>?e=…` | File ID decoded from the code, or from the collected link list |
+
+### Identities and permissions (least privilege)
+| Identity | Used by | Access |
+|---|---|---|
+| `gapps-reports@system.gserviceaccount.com` | Google Workspace (BigQuery Export) | Editor on the project (P8): writes the audit log |
+| `<prefix>-app` | Website | Run BigQuery queries; **read** export + lookup tables |
+| `<prefix>-sync` | Sync job | Run BigQuery queries; **read** export, **write** lookup tables |
+| `<prefix>-scheduler` | Cloud Scheduler | Start the sync job only |
+| `<prefix>-build` | Cloud Build (install time) | Store the app's container image only |
+| IAP service agent | Identity-Aware Proxy | The only identity allowed to call the website |
+
+### Where your data lives
+- **Everything stays in your Google Cloud project.** Nothing is sent to the vendor or any other company.
+- BigQuery data stays in the **same location as your export** (e.g. US or EU).
+- The website and job run in the **Cloud Run region** you pick at install.
+- Network: employees reach the website over **HTTPS through Google sign-in**. The app talks only to Google APIs. The optional link-collection tool also calls **Microsoft Graph, read-only**, from the admin's Cloud Shell.
+
+### Freshness and cost
+- **Freshness:** a newly migrated file is usually findable within minutes. The app also checks the newest export records directly.
+- **Cost:** the website **scales to zero** when unused. The sync runs about 30 seconds every 5 minutes. BigQuery reads only recent data. For most migrations the monthly cost is small.
+
+---
+
 ## Who does what
 | Person | Prerequisites | Time |
 |---|---|---|

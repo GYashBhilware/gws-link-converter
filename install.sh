@@ -55,9 +55,22 @@ if [[ $INTERACTIVE == 1 ]]; then
   echo
 
   bold "1/5  Google Cloud project (hosts the app, sync job and index dataset)"
-  ask PROJECT_ID "Project ID" "$(gcloud config get-value project 2>/dev/null)"
-  PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)') ||
-    { echo "Cannot access project $PROJECT_ID" >&2; exit 1; }
+  while true; do
+    ask PROJECT_ID "Project ID (lowercase, e.g. my-project-123456)" "$(gcloud config get-value project 2>/dev/null)"
+    # Project IDs are lowercase; accept pasted values with capitals/spaces.
+    PROJECT_ID=$(tr '[:upper:]' '[:lower:]' <<< "$PROJECT_ID" | tr -d '[:space:]')
+    if [[ ! "$PROJECT_ID" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]]; then
+      echo "  '$PROJECT_ID' is not a valid project ID (6-30 chars: lowercase letters, digits, '-')."
+    elif PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)' 2>/dev/null) &&
+         [[ -n "$PROJECT_NUMBER" ]]; then
+      break
+    else
+      echo "  Cannot access project '$PROJECT_ID' (wrong ID, or you lack access)."
+    fi
+    echo "  Projects you can access:"
+    gcloud projects list --format='table[no-heading](projectId,name)' --limit=20 2>/dev/null | sed 's/^/    /'
+    PROJECT_ID=""
+  done
   echo "  project number: $PROJECT_NUMBER"
 
   bold "2/5  Cloud Run"
