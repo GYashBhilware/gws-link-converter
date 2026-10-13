@@ -125,6 +125,10 @@ def load_env(path):
   return env
 
 
+def _swap(level_detail, name):
+  return level_detail[0], name, level_detail[1]
+
+
 class Report:
 
   def __init__(self):
@@ -140,9 +144,43 @@ class Report:
     return any(r[0] == "FAIL" for r in self.rows)
 
 
-def _gcloud(*args):
-  r = subprocess.run(["gcloud", *args], capture_output=True, text=True, timeout=60)
+def _gcloud(*args, timeout=60):
+  """Runs gcloud non-interactively. --quiet + closed stdin: gcloud must never stop at a
+  prompt (e.g. "API not enabled, enable and retry? (y/N)" in a brand-new project)."""
+  try:
+    r = subprocess.run(["gcloud", *args, "--quiet"], capture_output=True, text=True,
+                       timeout=timeout, stdin=subprocess.DEVNULL)
+  except subprocess.TimeoutExpired:
+    return 124, "", f"gcloud {' '.join(args[:3])} timed out after {timeout}s"
   return r.returncode, r.stdout.strip(), r.stderr.strip()
+
+
+_REGION_RE = re.compile(r"^[a-z]+-[a-z]+[0-9]{1,2}$")
+
+
+def check_region(project, region):
+  """-> (level, detail). The Cloud Run API is often not enabled yet before install."""
+  if not _REGION_RE.match(region or ""):
+    return "FAIL", f"{region!r} is not a region name (e.g. us-central1, europe-west1)"
+  rc, out, err = _gcloud("run", "regions", "list", f"--project={project}",
+                         "--format=value(locationId)")
+  if rc == 0 and out:
+    ok = region in out.split()
+    return ("PASS", region) if ok else ("FAIL", f"{region} is not a Cloud Run region")
+  if "SERVICE_DISABLED" in err or "has not been used" in err or "not enabled" in err:
+    return "WARN", (f"{region} - Cloud Run API not enabled yet; the installer enables it "
+                    "and the region is verified then")
+  return "WARN", f"{region} - could not list regions ({(err or 'no output')[:120]})"
+
+
+def check_service(project, region, service):
+  """-> (level, detail) for an existing service with the same name."""
+  rc, img, err = _gcloud("run", "services", "describe", service, f"--project={project}",
+                         f"--region={region}",
+                         "--format=value(spec.template.spec.containers[0].image)")
+  if rc == 0:
+    return "WARN", f"{service} exists and will be REPLACED (current image: {img})"
+  return "PASS", f"{service} will be created"
 
 
 def check(cfg_path):
@@ -275,17 +313,8 @@ def check(cfg_path):
 
   # Cloud Run region + existing service
   region, service = g("REGION"), g("SERVICE_NAME")
-  rc, out, er = _gcloud("run", "regions", "list", f"--project={project}", "--format=value(locationId)")
-  if rc == 0 and out:
-    rep.add("PASS" if region in out.split() else "FAIL", "Cloud Run region", region)
-  else:
-    rep.add("WARN", "Cloud Run region", "could not list regions (Cloud Run API not enabled yet?)")
-  rc, img, _ = _gcloud("run", "services", "describe", service, f"--project={project}",
-                       f"--region={region}", "--format=value(spec.template.spec.containers[0].image)")
-  if rc == 0:
-    rep.add("WARN", "Cloud Run service", f"{service} exists and will be REPLACED (current image: {img})")
-  else:
-    rep.add("PASS", "Cloud Run service", f"{service} will be created")
+  rep.add(*_swap(check_region(project, region), "Cloud Run region"))
+  rep.add(*_swap(check_service(project, region, service), "Cloud Run service"))
   return rep
 
 
