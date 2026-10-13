@@ -20,12 +20,19 @@ def row(path, status="SUCCEEDED", target="https://drive.google.com/file/d/T/view
 
 class FakeBQ:
 
-  def __init__(self, index=(), live=(), folder=()):
+  def __init__(self, index=(), live=(), folder=(), shares=None):
     self.index, self.live, self.folder = list(index), list(live), list(folder)
+    self.shares = shares  # None = share_links table does not exist yet
     self.calls = []
 
   def __call__(self, sql, params=None, **_):
     self.calls.append((sql, params))
+    if sql is repo_mod._SHARE_SQL:
+      if self.shares is None:
+        from app.bq import BigQueryError
+        raise BigQueryError('HTTP 404: {"message": "Not found: Table p:migration_lookup.share_links"}')
+      return [{"share_key": k, "item_guid": g, "source": "harvest"}
+              for k, g in self.shares.items() if k in params["share_keys"]], {}
     if sql is repo_mod._WATERMARK_SQL:
       return [{"watermark_usec": 1791367283448689, "last_run_at": 0.0}], {}
     if sql is repo_mod._FOLDER_SQL:

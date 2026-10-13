@@ -110,11 +110,19 @@ class SpecialKindsTest(unittest.TestCase):
     self.assertEqual(n.kind, Kind.SOURCEDOC)
     self.assertEqual(n.guid, "11111111-2222-4333-8444-555555555555")
 
-  def test_sharing_links_unsupported(self):
+  def test_sharing_links_parsed(self):
+    # Unknown (old "E...") token layout: recognized as a sharing link, no GUID guess.
+    n = normalize(HOST + "/:b:/g/personal/alan_contoso_com/EQ8sw4ZWeT1DnEfwlpaF6Hk?e=AbC123")
+    self.assertEqual(n.kind, Kind.SHARE)
+    self.assertEqual(n.share.owner, "alan_contoso_com")
+    self.assertEqual(n.share.item_type, "b")
+    self.assertEqual(n.share.guid_candidates, ())
+
+  def test_malformed_sharing_links_unsupported(self):
     for raw in (
-        HOST + "/:b:/g/personal/alan_contoso_com/EQ8sw4ZWeT1DnEfwlpaF6Hk?e=AbC123",
-        HOST + "/:x:/s/site/EabcDEF?e=1",
+        HOST + "/:x:/s/site/EabcDEF?e=1",  # token too short to be real
         HOST + "/:f:/p/alan/EsXyz",
+        HOST + "/:x:/g/personal/alan",  # no token
     ):
       with self.subTest(raw=raw):
         n = normalize(raw)

@@ -66,6 +66,9 @@ function renderResults(results) {
     if (r.migrated_at) d.appendChild(el("div", "Migrated: " + fmtTime(r.migrated_at)));
     if (r.warning) d.appendChild(el("div", "Warning: " + r.warning, "warn"));
     if (r.via === "live") d.appendChild(el("div", "Just migrated (live log)", "muted"));
+    if (r.match && r.match.startsWith("share")) {
+      d.appendChild(el("div", "Sharing link" + (r.share_owner ? " · owner: " + r.share_owner : ""), "muted"));
+    }
     if (r.status === "FOUND" && r.item_type === "FOLDER") {
       const b = el("button", "Show folder contents", "link");
       b.type = "button";

@@ -19,11 +19,14 @@ import re
 import unicodedata
 import urllib.parse
 
+from app import sharelink
+
 
 class Kind(enum.Enum):
   PATH = "PATH"  # Resolved to a canonical item path -> lookup by source_key.
   SOURCEDOC = "SOURCEDOC"  # Doc.aspx?sourcedoc={GUID} -> lookup by item GUID.
-  UNSUPPORTED = "UNSUPPORTED"  # Sharing link etc.; cannot be resolved offline.
+  SHARE = "SHARE"  # Sharing link /:x:/g/<scope>/<owner>/<token> -> see app/sharelink.py.
+  UNSUPPORTED = "UNSUPPORTED"  # Recognized SharePoint URL we cannot interpret.
   INVALID = "INVALID"  # Not a SharePoint / OneDrive URL at all.
 
 
@@ -33,6 +36,7 @@ class Normalized:
   key: str | None = None  # Canonical lowercase key (Kind.PATH).
   guid: str | None = None  # Lowercase item GUID without braces (SOURCEDOC).
   reason: str | None = None  # Human-readable explanation for non-PATH kinds.
+  share: sharelink.ShareLink | None = None  # Parsed sharing link (Kind.SHARE).
 
 
 _SP_HOST = re.compile(r"^[a-z0-9-]+(-my)?\.sharepoint(-df)?\.com$")
@@ -90,12 +94,15 @@ def normalize(raw: str) -> Normalized:
     if mode == "r":  # "r" = direct path link: the rest is the item path.
       path = path[len(path) - len(m.group(3)):]
     else:  # g / s / p ... = sharing links with an opaque token.
+      share = sharelink.parse(host, path)
+      if share:
+        return Normalized(Kind.SHARE, share=share)
       return Normalized(
           Kind.UNSUPPORTED,
           reason=(
-              "This is a SharePoint sharing link (it contains an access token,"
-              " not the file path). Open it in the browser and paste the"
-              " address-bar URL instead."
+              "This looks like a SharePoint sharing link, but its format is not"
+              " recognized. Open it in the browser and paste the address-bar URL"
+              " instead."
           ),
       )
 

@@ -64,6 +64,15 @@ class ApiDevModeTest(unittest.TestCase):
     self.assertEqual(self.client.get("/api/lookup", params={"url": "hello"}).json()["status"],
                      "INVALID")
 
+  def test_lookup_modern_attachment_link(self):
+    from tests.test_sharelink import USER_LINK
+    r = self.client.get("/api/lookup", params={"url": USER_LINK + "?e=Ab12"})
+    self.assertEqual(r.status_code, 200)
+    body = r.json()
+    self.assertEqual((body["status"], body["match"]), ("NOT_FOUND", "share"))
+    self.assertEqual(body["share_owner"], "yash_contoso_com")
+    self.assertIn("Excel workbook", body["message"])
+
   def test_lookup_missing_or_too_long(self):
     self.assertEqual(self.client.get("/api/lookup").status_code, 422)
     r = self.client.get("/api/lookup", params={"url": ROOT + "/" + "a" * 5000})

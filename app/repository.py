@@ -72,6 +72,15 @@ SELECT * EXCEPT (rn) FROM (
   AND (source_key IN UNNEST(@keys) OR source_item_guid IN UNNEST(@guids))
 """.replace("{{36}}", "{36}")
 
+# Sharing links collected from Microsoft Graph (harvest) or resolved live while
+# SharePoint was still online. share_key = "<host>/<token>" (see app/sharelink.py).
+_SHARE_SQL = f"""
+SELECT share_key, item_guid, source
+FROM {_T}.share_links`
+WHERE share_key IN UNNEST(@share_keys) AND item_guid IS NOT NULL
+QUALIFY ROW_NUMBER() OVER (PARTITION BY share_key ORDER BY recorded_at DESC) = 1
+"""
+
 _WATERMARK_SQL = f"SELECT watermark_usec, last_run_at FROM {_T}.sync_state` WHERE name = 'activity'"
 
 _FOLDER_SQL = f"""
@@ -99,6 +108,8 @@ class Result:
   batch_name: str | None = None
   attempts: int | None = None
   via: str | None = None  # index | live
+  match: str | None = None  # path | sourcedoc | share-harvested | share-decoded
+  share_owner: str | None = None  # sharing links: OneDrive owner / site name
 
 
 def _iso(ts):
@@ -134,11 +145,29 @@ class Repository:
     rows, _ = self._query(_LIVE_SQL, params, dry_run_first=False)
     return rows
 
+  def _harvested(self, share_keys):
+    """share_key -> item_guid from the share_links table ({} if none / no table yet)."""
+    if not share_keys:
+      return {}
+    try:
+      rows, _ = self._query(_SHARE_SQL, {"share_keys": sorted(share_keys)}, dry_run_first=False)
+    except bq.BigQueryError as e:
+      if "Not found: Table" in str(e):  # schema step not yet run on this deployment
+        return {}
+      raise
+    return {r["share_key"]: r["item_guid"].lower() for r in rows}
+
   def lookup(self, inputs: list[str]) -> list[Result]:
     inputs = inputs[:MAX_BULK]
     norm = [normalize(i) for i in inputs]
     keys = {n.key for n in norm if n.kind == Kind.PATH}
     guids = {n.guid for n in norm if n.kind == Kind.SOURCEDOC}
+    shares = [n.share for n in norm if n.kind == Kind.SHARE]
+    harvested = self._harvested({s.share_key for s in shares})
+    for s in shares:
+      if s.share_key in harvested:
+        guids.add(harvested[s.share_key])
+      guids.update(s.guid_candidates)
 
     found = {}  # ("k", key) / ("g", guid) -> (row, via)
 
@@ -163,7 +192,15 @@ class Repository:
       if n.kind in (Kind.INVALID, Kind.UNSUPPORTED):
         out.append(Result(raw, n.kind.value, message=n.reason))
         continue
-      hit = found.get(("k", n.key) if n.kind == Kind.PATH else ("g", n.guid))
+      if n.kind == Kind.SHARE:
+        hit, match = self._share_hit(n.share, harvested, found)
+        if not hit:
+          out.append(Result(raw, "NOT_FOUND", match="share", share_owner=n.share.owner,
+                            message=self._share_miss_message(n.share, n.share.share_key in harvested)))
+          continue
+      else:
+        hit = found.get(("k", n.key) if n.kind == Kind.PATH else ("g", n.guid))
+        match = n.kind.value.lower()
       if not hit:
         out.append(Result(raw, "NOT_FOUND", message=(
             "No migration record found for this link. It may not have been "
@@ -182,8 +219,38 @@ class Repository:
           event_status=r["event_status"],
           warning=r.get("warning_title") if ok else None,
           migrated_at=_iso(r["migrated_at"]), migrated_by=r.get("migrated_by"),
-          batch_name=r.get("batch_name"), attempts=r.get("attempts"), via=via))
+          batch_name=r.get("batch_name"), attempts=r.get("attempts"), via=via,
+          match=match, share_owner=n.share.owner if n.kind == Kind.SHARE else None))
     return out
+
+  @staticmethod
+  def _share_hit(share, harvested, found):
+    """Harvested mapping (authoritative) first, then decoded token candidates."""
+    order = []
+    if share.share_key in harvested:
+      order.append((harvested[share.share_key], "share-harvested"))
+    order += [(g, "share-decoded") for g in share.guid_candidates]
+    best = None
+    for g, match in order:
+      hit = found.get(("g", g))
+      if hit and (best is None or (_is_success(hit[0]) and not _is_success(best[0][0]))):
+        best = (hit, match)
+    return best if best else (None, None)
+
+  @staticmethod
+  def _share_miss_message(share, was_harvested):
+    where = (f"{share.owner}'s OneDrive" if share.scope == "personal"
+             else f"the {share.owner} site")
+    base = f"Sharing link to a {share.item_label} in {where}. "
+    if was_harvested:
+      return base + ("The link is known, but the file it points to has no migration "
+                     "record yet. It may not have been migrated.")
+    if share.guid_candidates:
+      return base + ("No migrated file matches it yet. If the owner's files have not "
+                     "been migrated, try again after their migration.")
+    return base + ("This link format can't be decoded offline. It will resolve once the "
+                   "sharing-link inventory has been collected from SharePoint; meanwhile, "
+                   "open it and paste the address-bar URL.")
 
   def folder(self, url: str, limit: int = 200) -> tuple[Result, list[dict]]:
     """The folder itself plus everything migrated beneath it."""

@@ -53,6 +53,21 @@ PARTITION BY DATE(event_time)
 CLUSTER BY source_key, source_item_guid
 OPTIONS (description = 'Data Migration CREATE_FILE/CREATE_FOLDER events copied from the Workspace export');
 
+-- Sharing links (Outlook modern attachments, "Copy link") -> SharePoint item GUID.
+-- Filled while SharePoint is still online: Microsoft Graph harvest, live resolution,
+-- or a CSV import (tools/import_share_links.py). Insert-only; latest row per key wins.
+CREATE TABLE IF NOT EXISTS `{project}.{ds}.share_links` (
+  share_key   STRING NOT NULL,   -- "<host>/<token>" (app/sharelink.py), token case kept
+  item_guid   STRING,            -- SharePoint listItemUniqueId (= migration log GUID)
+  source      STRING,            -- harvest | live | import
+  owner       STRING,            -- OneDrive owner or site name from the link
+  item_type   STRING,            -- Office type letter (x, w, b, f, ...)
+  web_url     STRING,            -- the sharing link as seen
+  recorded_at TIMESTAMP NOT NULL
+)
+CLUSTER BY share_key
+OPTIONS (description = 'SharePoint sharing link -> item GUID, collected before SharePoint decommission');
+
 -- execution_id -> wave (from START_MIGRATION events).
 CREATE TABLE IF NOT EXISTS `{project}.{ds}.migration_executions` (
   execution_id   STRING NOT NULL,

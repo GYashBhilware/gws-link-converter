@@ -112,8 +112,35 @@ BigQuery scans are restricted to recent partitions.
 
 Uninstall never deletes your Workspace export data.
 
-## 6. Limitations (v1)
-* SharePoint **sharing links** (`/:x:/g/…?e=…`) can't be resolved — they don't contain the
-  file path. Open the link once and paste the address-bar URL instead.
+## 6. Sharing links and Outlook "modern attachments"
+Links made with **Copy link** or sent as Outlook **modern attachments**
+(`…/:x:/g/personal/<owner>/<token>?e=…`) contain a share token instead of the file path.
+The app resolves them in two ways:
+
+1. **Offline token decoding:** known token formats contain the file's SharePoint ID, which
+   the app matches against the migration log. No setup is needed, and it keeps working after
+   SharePoint is switched off.
+2. **Sharing-link inventory (recommended, required for older link formats):** before
+   SharePoint is decommissioned, collect every sharing link on the migrated OneDrives/sites:
+   ```bash
+   # Azure app registration with read-only application permission Sites.Read.All (admin consent)
+   export GRAPH_TENANT_ID=… GRAPH_CLIENT_ID=… GRAPH_CLIENT_SECRET=…   # do not store in files
+   set -a; source deploy.env; set +a
+   export GCP_PROJECT=$PROJECT_ID BQ_SOURCE_TABLE=$EXPORT_TABLE BQ_DATASET=$INDEX_DATASET
+   python3 -m tools.harvest_share_links --from-index --load
+   ```
+   Re-run it regularly until cutover, and once more right after SharePoint is set to read-only.
+   You can also load a CSV (`url,item_guid`) from another tool:
+   `python3 -m tools.import_share_links links.csv`.
+
+> [!IMPORTANT]
+> Outlook stores files attached from a PC in the sender's OneDrive **`Attachments`** folder.
+> Make sure that folder is included in the migration, or those links have no Drive copy.
+
+The receiver can open the Drive copy only if the migration carried over their access.
+
+## 7. Limitations
+* A sharing link resolves only if its format can be decoded, or it was collected
+  before SharePoint was switched off.
 * Only migrations logged while the BigQuery export was enabled are searchable.
 * Users outside your Workspace organization can't sign in.
