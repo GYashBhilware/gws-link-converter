@@ -5,7 +5,7 @@
 1. **LinkFinder itself costs nothing.** There's no license and no Marketplace purchase; you receive the package.
 2. You need a **Google Workspace edition that includes BigQuery Export** (for example Enterprise Standard / Plus).
 3. You need a **Google Cloud project with a billing account**. You pay only for what the app uses (pay as you go).
-4. **Example:** for **5,000 people using it every day**, expect roughly **$1–3 per day** with the recommended settings (about **$35–80 per month**), depending on how much people use it. Details in section 4.
+4. **Example:** for **5,000 people using it every day**, the current version costs roughly **$2–10 per day** for light to typical use (about **$60–280 per month**). A planned optimization brings typical use down to about **$3 per day**. Details in section 4.
 
 ## 1. Licensing: what you need
 
@@ -71,7 +71,7 @@ The app reads the Workspace **audit log**, which Google copies into BigQuery thr
 1. **Lookups.** Each lookup reads a small amount from BigQuery, but Google bills a **minimum of 10 MB per table** for each query.
 2. **The copy job** runs **288 times a day** (every 5 minutes).
 3. **Audit log size.** Your Workspace audit log grows with company size and activity (all apps, not only migrations). It affects storage and how much the copy job reads.
-4. **"Not found" links** (optional live search). If enabled, the app also searches the raw audit log for files migrated in the last few minutes. This is the **largest cost** for big companies, and the recommended setting turns it off (section 4.3).
+4. **"Not found" links** (live check). For links not yet in its lookup tables, the app also searches the newest audit-log rows, so files migrated in the last few minutes are found immediately. This is the **largest cost** for big companies. The planned optimization limits it (section 4.3).
 5. **Website traffic** (Cloud Run) is small, because it scales to zero.
 
 ## 4. Example: 5,000 people using it every day
@@ -93,13 +93,16 @@ Other assumptions:
 - Usage figures (bytes billed per copy run and per lookup) were **measured on a running installation** and scaled up.
 
 ### 4.2 Result: cost per day and per month (USD, estimate)
-| Setting | Light | Typical | Heavy |
+| Version | Light | Typical | Heavy |
 |---|---|---|---|
-| ✅ **Recommended settings** (live search off, single lookup table) | **≈ $1.10 / day** (≈ $33 / month) | **≈ $2.65 / day** (≈ $80 / month) | **≈ $8 / day** (≈ $245 / month) |
-| Current default (live search on) | ≈ $2.00 / day (≈ $60 / month) | ≈ $9.40 / day (≈ $280 / month) | ≈ $95 / day (≈ $2,870 / month) |
+| ✅ **Current version** (what LinkFinder does today) | **≈ $2.00 / day** (≈ $60 / month) | **≈ $9.40 / day** (≈ $280 / month) | **≈ $95 / day** (≈ $2,870 / month) |
+| 🔜 Planned optimization (not yet released: live check limited, single lookup table) | ≈ $1.10 / day (≈ $33 / month) | ≈ $2.65 / day (≈ $80 / month) | ≈ $8 / day (≈ $245 / month) |
+
+> [!IMPORTANT]
+> The **current version** row is what an installation costs today. The planned optimization row shows the expected effect of a change that is **not yet released**. Large organizations ("Heavy" usage) should wait for it, or ask for it, before rollout.
 
 ### 4.3 Where the money goes ("Typical", 15,000 lookups a day)
-| Item | Current default | Recommended settings |
+| Item | Current version | Planned optimization |
 |---|---|---|
 | BigQuery: lookups | $2.56 | $0.85 |
 | BigQuery: live search for "not found" links | $5.03 | $0.00 (off) |
@@ -111,12 +114,12 @@ Other assumptions:
 | Free monthly allowances (per day) | −$0.41 | −$0.41 |
 | **Total per day** | **≈ $9.40** | **≈ $2.65** |
 
-**What the recommended settings change for users:** a file migrated **in the last few minutes** becomes findable at the next copy run (within 5 minutes), instead of instantly. Nothing else changes.
+**What the planned optimization will change for users:** a file migrated **in the last few minutes** becomes findable at the next copy run (within 5 minutes), instead of instantly. Nothing else changes.
 
 > [!NOTE]
 > These are **estimates**, not quotes. Real cost depends on how people use the app, the size of your audit log, your region (prices outside the US can differ), and any discounts on your billing account. For an exact figure, use the Google Cloud pricing calculator: https://cloud.google.com/products/calculator
 
-### 4.4 Other company sizes (recommended settings, "Typical" usage, rough guide)
+### 4.4 Other company sizes (planned optimization, "Typical" usage, rough guide)
 | Daily users | Lookups / day | Approx. cost / day | Approx. cost / month |
 |---|---|---|---|
 | 500 | 1,500 | ≈ $0.10 (mostly covered by free allowances) | ≈ $2 |
@@ -125,7 +128,7 @@ Other assumptions:
 
 ## 5. Keep the cost under control
 1. **Set a budget alert** (5 minutes): Google Cloud console → **Billing → Budgets & alerts → Create budget** → choose the project → set a monthly amount (e.g. $150) → alerts at 50%, 90% and 100% → **Finish**. You get an email if spending rises.
-2. **Use the recommended settings** (live search off, single lookup table).
+2. **Ask for the planned optimization** (live check limited, single lookup table) before rolling out to a large organization.
 3. **Copy job every 15 minutes** instead of 5, if a short delay is acceptable (saves a little more).
 4. **Audit log retention:** the audit log export is usually the largest storage item over time. Ask your Google Cloud admin whether to keep it indefinitely or set a retention period in BigQuery, in line with your compliance rules.
 5. **Remove it when the project ends:** `./uninstall.sh --yes` stops all app costs. The audit-log export stays under your control.
@@ -138,6 +141,6 @@ Other assumptions:
 | 3 | Google Cloud **billing account** | No purchase, pay as you go |
 | 4 | LinkFinder app | ❌ No |
 | 5 | Microsoft Entra app (optional) | ❌ No |
-| 6 | Expected running cost, 5,000 daily users | ≈ $1–3 per day with recommended settings |
+| 6 | Expected running cost, 5,000 daily users | ≈ $2–10 per day today (light–typical); ≈ $1–3 per day after the planned optimization |
 
 *Prices and editions as published by Google at the time of writing. Always confirm current pricing and edition features with Google or your Google partner.*

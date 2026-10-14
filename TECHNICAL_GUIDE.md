@@ -13,7 +13,7 @@ LinkFinder maps **SharePoint Online / OneDrive links** to the **Google Drive lin
 | Scheduling | Cloud Scheduler → Cloud Run job |
 | Authentication | Identity-Aware Proxy (IAP), Google accounts of allowed Workspace domains |
 | External dependencies | None at runtime. Optional: Microsoft Graph (read-only), used by an admin-run tool |
-| Deployment model | One installation per customer Google Cloud project (single tenant) |
+| Deployment model | One installation per organization, in its own Google Cloud project (single tenant) |
 
 ## 2. Architecture
 ```mermaid
@@ -41,7 +41,7 @@ flowchart LR
 ## 3. Repository layout
 | Path | Purpose |
 |---|---|
-| `install.sh` | Interactive installer: asks/auto-detects settings, writes `deploy.env`, preflight, deploy, first sync |
+| `install.sh` | Interactive installer: asks/auto-detects settings, writes `deploy.env`, preflight, deploy, first sync, health check; modes `--dry-run`, `preflight`, `verify`; writes `logs/` |
 | `setup.sh` | Idempotent provisioning steps: `apis iam schema service iap job schedule alerts`; `show` prints resolved settings |
 | `uninstall.sh` | Removes a deployment (dry run unless `--yes`; `--delete-index` drops the index dataset) |
 | `package.sh` | Builds a zip from a git ref (`git archive`) |
@@ -54,7 +54,10 @@ flowchart LR
 | `app/auth.py` | IAP JWT verification and domain allow-list |
 | `app/main.py` | HTTP API and static UI |
 | `sql/schema.sql`, `sql/sync.sql` | Index DDL and incremental sync script |
-| `tools/` | `run_sql`, `sync_job`, `grant_dataset`, `preflight`, `run_sql_drop`, `import_share_links`, `graph`, `harvest_share_links` |
+| `tools/` | `run_sql`, `sync_job`, `grant_dataset`, `preflight` (safety checks), `verify` (health check), `install_summary` (PASS/WARN/FAIL summary), `run_sql_drop`, `import_share_links`, `graph`, `harvest_share_links` |
+| `app/static/` | Web UI (`index.html`, `app.js`, `app.css`) |
+| `docs/` | Architecture diagram (`link-finder-architecture.png` / `.svg`) |
+| `ADMIN_GUIDE.md`, `LICENSING_AND_COST.md`, `ONE_PAGER.md` | Admin install guide, licensing & cost, one-page summary |
 | `tests/` | Unit tests (offline) and BigQuery integration tests (`RUN_BQ_TESTS=1`) |
 | `monitoring/` | Alert policy templates |
 
@@ -76,7 +79,7 @@ flowchart LR
 | `SYNC_CRON` | | `*/5 * * * *` | Frequent sync schedule (UTC) |
 | `CATCHUP_CRON` | | `17 2 * * *` | Nightly catch-up schedule (UTC), 72 h re-read |
 | `ALERT_EMAIL` | | — | Alert recipient; blank = no alert policies |
-| `APP_TITLE` | | default title | Heading shown in the UI |
+| `APP_TITLE` | | `LinkFinder` | Heading shown in the UI (the footer "LinkFinder · Developed by Yabhi" is always shown) |
 | `SCHEDULE_NAME`, `CATCHUP_SCHEDULE_NAME` | | `<job>-frequent`, `<job>-nightly-catchup` | Advanced: custom schedule names |
 | `SCHEDULER_REGION` | | `REGION` | Advanced: Cloud Scheduler location |
 | `METRIC_NAME` | | `<job>_ok` (dashes → underscores) | Advanced: log metric name |
@@ -287,7 +290,7 @@ GCP_PROJECT=$PROJECT_ID BQ_SOURCE_TABLE=$EXPORT_TABLE BQ_DATASET=$INDEX_DATASET 
   AUTH_MODE=dev .venv/bin/uvicorn app.main:app --port 8080            # local UI (never on Cloud Run)
 ```
 - **Conventions:** stdlib-only tooling (it runs in Cloud Shell without extra packages); SQL rendered with plain placeholder replacement (JS UDF braces); all user input as query parameters.
-- **Tests to keep green:** normalization and UDF parity, repository (fake BigQuery), sharing links, Graph harvester (fake HTTP), API/auth, config.
+- **Tests to keep green:** normalization and UDF parity, repository (fake BigQuery), sharing links, Graph harvester (fake HTTP), API/auth/branding, config, preflight (non-interactive gcloud), install summary.
 - **Releasing:** build from a clean branch. Scan all files **and commit metadata** for tenant names, user names, real links and personal emails before publishing. `./package.sh <tag>` creates the zip.
 
 ## 15. Limitations
