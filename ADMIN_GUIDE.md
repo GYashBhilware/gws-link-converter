@@ -1,4 +1,4 @@
-# LinkFinder: customer setup guide
+# LinkFinder: Admin Guide
 *SharePoint / OneDrive link → Google Drive link*
 
 ## What this app does (in one minute)
@@ -183,7 +183,7 @@ Which links it understands:
 1. Open https://console.cloud.google.com
 2. Click the **project picker** (top bar) → **All** tab.
 3. You should see your **company domain** as the organization at the top (🏢 `yourcompany.com`).
-4. If you don't see it, sign in once with a super admin account. Google creates the organization for a Workspace customer automatically.
+4. If you don't see it, sign in once with a super admin account. Google creates the organization for your Workspace account automatically.
 
 ✅ **Done when:** your domain appears as an organization in the project picker.
 

@@ -1,7 +1,7 @@
 # LinkFinder: Technical & Administration Guide
 *For IT administrators, developers and support teams who configure, operate or extend LinkFinder.*
 
-> End users and first-time installers should start with **CUSTOMER_SETUP.md** (prerequisites and install). This document is the technical reference.
+> End users and first-time installers should start with the **Admin Guide** (`ADMIN_GUIDE.md`: prerequisites and install). This document is the technical reference.
 
 ## 1. Purpose
 LinkFinder maps **SharePoint Online / OneDrive links** to the **Google Drive links** of the same items after a Google Workspace **Data Migration**. It reads the Workspace audit log (exported to BigQuery), keeps an incremental lookup index, and serves a small web app behind Google sign-in (Identity-Aware Proxy).
