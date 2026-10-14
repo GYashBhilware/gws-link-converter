@@ -9,7 +9,7 @@ With **Link Finder**, an employee **pastes an old link** and gets the **new Goog
 It runs **inside your own Google Cloud project**. Your data never leaves your organization.
 
 **The setup has 3 stages:**
-1. **Prerequisites (P1–P11):** done by you, once. Most take a few minutes.
+1. **Prerequisites (P1–P12):** done by you, once. Most take a few minutes.
 2. **Install:** one command; the installer builds everything else.
 3. **Roll out:** send the link to your employees.
 
@@ -56,21 +56,21 @@ flowchart LR
 In plain words:
 1. **Files move:** the Data Migration service copies files from SharePoint/OneDrive to Google Drive.
 2. **Google keeps a diary:** for every file it writes an audit-log record with the **old link** and the **new link**.
-3. **The diary goes to BigQuery:** the BigQuery Export (prerequisite P9) copies those records into the `activity` table.
+3. **The diary goes to BigQuery:** the BigQuery Export (prerequisite P10) copies those records into the `activity` table.
 4. **A robot tidies it up:** every 5 minutes the **sync job** copies new migration records into the app's own **lookup tables**.
 5. **People ask:** an employee signs in, pastes an old link, and the **website** looks up the new link.
 
 ### The building blocks
 | Component | What it is | What it does here | Created by |
 |---|---|---|---|
-| BigQuery export dataset (`activity` table) | Google's copy of the Workspace audit log | Source of truth: every migrated file, old link → new link | You (P9) |
+| BigQuery export dataset (`activity` table) | Google's copy of the Workspace audit log | Source of truth: every migrated file, old link → new link | You (P10) |
 | BigQuery dataset `migration_lookup` | The app's own small database | `migration_events` (one row per migrated file), `share_links` (sharing link → file), sync bookmark | Installer |
 | Cloud Run **job** (sync) | A program that runs and stops | Copies only new records, never creates duplicates | Installer |
 | Cloud Scheduler | An alarm clock | Starts the sync every 5 minutes, plus a nightly catch-up | Installer |
 | Cloud Run **service** | The website | Cleans pasted links, decodes sharing links, looks them up | Installer |
 | Identity-Aware Proxy (IAP) | A security guard | Only your company accounts can open the website | Installer |
 | Cloud Monitoring | A smoke alarm | Emails an admin if the sync fails or stops | Installer |
-| Link-collection tool (optional) | A script run by an admin | Reads sharing links from Microsoft (read-only) before SharePoint is switched off | You run it (P12) |
+| Link-collection tool (optional) | A script run by an admin | Reads sharing links from Microsoft (read-only) before SharePoint is switched off | You run it (P13) |
 
 ### What happens when someone pastes a link
 ```mermaid
@@ -105,7 +105,7 @@ Which links it understands:
 ### Identities and permissions (least privilege)
 | Identity | Used by | Access |
 |---|---|---|
-| `gapps-reports@system.gserviceaccount.com` | Google Workspace (BigQuery Export) | Editor on the project (P8): writes the audit log |
+| `gapps-reports@system.gserviceaccount.com` | Google Workspace (BigQuery Export) | Editor on the project (P9): writes the audit log |
 | `<prefix>-app` | Website | Run BigQuery queries; **read** export + lookup tables |
 | `<prefix>-sync` | Sync job | Run BigQuery queries; **read** export, **write** lookup tables |
 | `<prefix>-scheduler` | Cloud Scheduler | Start the sync job only |
@@ -127,10 +127,10 @@ Which links it understands:
 ## Who does what
 | Person | Prerequisites | Time |
 |---|---|---|
-| 👤 **Google Workspace super admin** | P1, P3, P4, P9 | 15 min |
-| 👤 **Google Cloud admin / project owner** | P5, P6, P7, P8, P10 + Install | 30 min |
-| 👤 **Migration owner** | P11 | 10 min |
-| 👤 *(Optional)* **Microsoft 365 / Entra admin** | P12 | 15 min |
+| 👤 **Google Workspace super admin** | P1, P3, P4, P10 | 15 min |
+| 👤 **Google Cloud admin / project owner** | P5, P6, P7, P8, P9, P11 + Install | 30 min |
+| 👤 **Migration owner** | P12 | 10 min |
+| 👤 *(Optional)* **Microsoft 365 / Entra admin** | P13 | 15 min |
 
 > One person can play several roles. Work through the steps **in order**: some depend on earlier ones.
 
@@ -144,7 +144,7 @@ Which links it understands:
 **Steps (super admin):**
 1. Open https://admin.google.com
 2. Go to **Billing → Subscriptions**.
-3. Check that your edition is one of: **Enterprise Standard / Plus**, **Education Standard / Plus**, **Frontline Standard / Plus**, **Enterprise Essentials Plus**. Google's current list is in the guide linked in P9.
+3. Check that your edition is one of: **Enterprise Standard / Plus**, **Education Standard / Plus**, **Frontline Standard / Plus**, **Enterprise Essentials Plus**. Google's current list is in the guide linked in P10.
 
 ✅ **Done when:** your edition supports BigQuery Export.
 ❌ **If not:** the app can't work. Talk to your Google partner about the edition.
@@ -157,7 +157,7 @@ Which links it understands:
 **Steps:**
 1. Name a **Google Workspace super admin**. To check: Admin console → **Account → Admin roles → Super Admin → Admins**.
 2. Name a **Google Cloud admin**, who will own the project.
-3. *(Optional)* Name a **Microsoft 365 / Entra admin** for P12.
+3. *(Optional)* Name a **Microsoft 365 / Entra admin** for P13.
 
 ✅ **Done when:** you know who does each part.
 
@@ -231,7 +231,62 @@ Which links it understands:
 
 ---
 
-## P8. Prepare the project for the BigQuery Export
+## P8. Switch on the required Google Cloud services (APIs)
+**Why:** the app uses 10 Google Cloud services. In a new project they are **off**. If they are still off when the installer starts, its checks stop with a warning, or (in older versions) get stuck.
+
+**Who:** Google Cloud admin with the **Owner** role (or *Service Usage Admin*). **Billing (P6) must be linked first.**
+
+**Option 1: one command in Cloud Shell (easiest)**
+1. Open **Cloud Shell** (`>_` icon in the Google Cloud console).
+2. Paste this, replacing `YOUR_PROJECT_ID` with your project ID (lowercase), and press **Enter**:
+```bash
+gcloud services enable \
+  run.googleapis.com \
+  cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com \
+  cloudscheduler.googleapis.com \
+  iap.googleapis.com \
+  bigquery.googleapis.com \
+  logging.googleapis.com \
+  monitoring.googleapis.com \
+  cloudresourcemanager.googleapis.com \
+  storage.googleapis.com \
+  --project=YOUR_PROJECT_ID
+```
+3. Wait 1–2 minutes until it says **"Operation … finished successfully."**
+4. Check:
+```bash
+gcloud services list --enabled --project=YOUR_PROJECT_ID
+```
+All 10 names should be in the list.
+
+**Option 2: click in the console**
+1. Open https://console.cloud.google.com and **select your project** at the top.
+2. Go to **Menu ☰ → APIs & Services → Library**.
+3. Search for each name below, open it, click **Enable**:
+
+| # | Search for | Why the app needs it |
+|---|---|---|
+| 1 | **Cloud Run Admin API** | Runs the website and the sync job |
+| 2 | **Cloud Build API** | Builds the app from the code |
+| 3 | **Artifact Registry API** | Stores the built app |
+| 4 | **Cloud Scheduler API** | Runs the sync every 5 minutes |
+| 5 | **Cloud Identity-Aware Proxy API** | Google sign-in in front of the app |
+| 6 | **BigQuery API** | Reads the audit log, stores the lookup tables |
+| 7 | **Cloud Logging API** | Logs and the install record |
+| 8 | **Cloud Monitoring API** | Email alerts |
+| 9 | **Cloud Resource Manager API** | Project and sign-in policy settings |
+| 10 | **Cloud Storage API** | Holds the uploaded code during the build |
+
+4. Check: **APIs & Services → Enabled APIs & services** lists all 10.
+
+> If you see *"Permission denied"* or *"blocked by organization policy"*, your company restricts which services can be switched on. Ask your Google Cloud admin to enable these 10 for this project (see also P11).
+
+✅ **Done when:** all 10 services show as **enabled** for the project.
+
+---
+
+## P9. Prepare the project for the BigQuery Export
 **Why:** Google Workspace writes the logs using its own system account, **`gapps-reports@system.gserviceaccount.com`**. That account needs permission in your project.
 
 **Steps (Google Cloud admin):**
@@ -242,13 +297,13 @@ Which links it understands:
 5. **Role:** **Basic → Editor**.
 6. Click **Save**.
 
-> Some organizations block adding accounts from outside their domain (the policy *"Domain restricted sharing"*). If saving fails with a policy error, see P10.
+> Some organizations block adding accounts from outside their domain (the policy *"Domain restricted sharing"*). If saving fails with a policy error, see P11.
 
 ✅ **Done when:** IAM lists `gapps-reports@system.gserviceaccount.com` with **Editor**.
 
 ---
 
-## P9. Turn on the BigQuery Export ⭐ (most important)
+## P10. Turn on the BigQuery Export ⭐ (most important)
 **Why:** this copies the Workspace **audit log** into BigQuery. The log records every migrated file (old link + new link), and the app reads it.
 
 > [!IMPORTANT]
@@ -274,7 +329,7 @@ Which links it understands:
 
 ---
 
-## P10. Check organization policies (only if your company uses them)
+## P11. Check organization policies (only if your company uses them)
 **Why:** some companies set rules that can block the install. Most don't.
 
 **Steps (Google Cloud admin or organization policy admin):**
@@ -283,7 +338,7 @@ Which links it understands:
 
 | Policy (search for) | Must allow | Why |
 |---|---|---|
-| **Domain restricted sharing** (`iam.allowedPolicyMemberDomains`) | Your Workspace customer ID, **and** the export account from P8 (Google's guide covers this case) | Lets the export write logs and the app grant access to your domain |
+| **Domain restricted sharing** (`iam.allowedPolicyMemberDomains`) | Your Workspace customer ID, **and** the export account from P9 (Google's guide covers this case) | Lets the export write logs and the app grant access to your domain |
 | **Resource location restriction** (`gcp.resourceLocations`) | The **region** you'll choose at install, plus your BigQuery export location | The installer creates resources there |
 | **Allowed ingress settings (Cloud Run)** (`run.allowedIngress`) | **All** | Employees reach the app over the internet, behind Google sign-in |
 | **Restrict Cloud Run invoker / public access** policies | Access by Google's sign-in service (IAP) | The app uses IAP; it is **not** public |
@@ -294,21 +349,21 @@ Which links it understands:
 
 ---
 
-## P11. Check your migration plan
+## P12. Check your migration plan
 **Why:** the app can only find files that were really migrated, and links point to the **sender's** OneDrive.
 
 **Steps (migration owner), in the Data Migration service settings:**
 1. ✅ Migrate the OneDrive of **every person who sends files**.
 2. ✅ Include each user's OneDrive **`Attachments`** folder. Outlook saves files attached from a computer there, and those become "modern attachment" links.
 3. ✅ Migrate the people who **receive** links too, so their access can be carried over.
-4. ✅ Run migrations **after** P9.
+4. ✅ Run migrations **after** P10.
 5. ℹ️ After a migration, if a file shows the warning **`DrivePermissionRestricted`**, its sharing permissions were not fully copied. The app still finds the file, but the receiver may need to **request access**.
 
 ✅ **Done when:** the migration scope includes all senders and their `Attachments` folders.
 
 ---
 
-## P12. *(Optional, recommended)* Create a read-only Microsoft app
+## P13. *(Optional, recommended)* Create a read-only Microsoft app
 **Why:** most modern sharing links are understood by the app directly. **Older link formats** need an "address book" collected from Microsoft **while SharePoint is still on**. This app gives read-only access for that.
 
 **Steps (Microsoft Entra admin):**
@@ -336,11 +391,12 @@ Which links it understands:
 | P5 | Project created **inside the organization** | ☐ |
 | P6 | Billing linked | ☐ |
 | P7 | Installer has **Owner** | ☐ |
-| P8 | BigQuery API on + `gapps-reports@system.gserviceaccount.com` = **Editor** | ☐ |
-| P9 | BigQuery Export **ON**, and the `activity` table exists | ☐ |
-| P10 | No organization policy blocks the project | ☐ |
-| P11 | Migration includes senders and `Attachments` folders | ☐ |
-| P12 | *(Optional)* Read-only Microsoft app created | ☐ |
+| P8 | 10 required Google Cloud services (APIs) **enabled** | ☐ |
+| P9 | BigQuery API on + `gapps-reports@system.gserviceaccount.com` = **Editor** | ☐ |
+| P10 | BigQuery Export **ON**, and the `activity` table exists | ☐ |
+| P11 | No organization policy blocks the project | ☐ |
+| P12 | Migration includes senders and `Attachments` folders | ☐ |
+| P13 | *(Optional)* Read-only Microsoft app created | ☐ |
 
 ---
 
@@ -370,11 +426,11 @@ cd gws-link-converter
 | Question | What to answer |
 |---|---|
 | Project ID | The project from P5 (suggested) |
-| Cloud Run region | Near your users and allowed by P10, e.g. `europe-west1`, `us-central1`, `asia-south1` |
+| Cloud Run region | Near your users and allowed by P11, e.g. `europe-west1`, `us-central1`, `asia-south1` |
 | Cloud Run service name | Keep `gws-link-converter` |
 | Name prefix | Keep `link-converter` |
 | Sync job name | Keep the suggestion |
-| Export project / dataset / table | The installer **lists the datasets it finds**: pick the one from P9. Table = `activity` |
+| Export project / dataset / table | The installer **lists the datasets it finds**: pick the one from P10. Table = `activity` |
 | Index dataset | Keep `migration_lookup` |
 | Allowed domains | Your company domain(s) (suggested) |
 | Schedules | Keep the suggestions |
@@ -441,7 +497,7 @@ It checks that the website is running, sign-in is enforced, anonymous visitors a
 
 ---
 
-## Before SharePoint is switched off (needs P12)
+## Before SharePoint is switched off (needs P13)
 In Cloud Shell, in the `gws-link-converter` folder:
 ```bash
 export GRAPH_TENANT_ID=...  GRAPH_CLIENT_ID=...  GRAPH_CLIENT_SECRET=...
@@ -474,17 +530,18 @@ Run it 🔁 after each migration wave, 🔁 a few days before cutover, and 🔁 
 | Message | Fix (prerequisite) |
 |---|---|
 | Cloud Shell won't open | **P3** |
+| Installer stops at *Cloud Run region* (timed out / "API not enabled" / `SERVICE_DISABLED`) | **P8**: switch on the required services, then run `./install.sh` again |
 | `FAIL project is in an organization` | **P4 / P5**: project must be under your organization |
 | `FAIL billing enabled` | **P6** |
 | `FAIL installer permissions` | **P7** |
-| `FAIL export table exists` | **P8 / P9**: export not on, wrong dataset, or table not created yet |
-| `FAIL export has data_migration fields` | **P9 / P11**: no migration has run since the export was switched on |
-| Install fails with *"violates constraint …"* | **P10**: organization policy |
-| `FAIL Cloud Run region` | Pick a valid region allowed by **P10** |
+| `FAIL export table exists` | **P9 / P10**: export not on, wrong dataset, or table not created yet |
+| `FAIL export has data_migration fields` | **P10 / P12**: no migration has run since the export was switched on |
+| Install fails with *"violates constraint …"* | **P11**: organization policy |
+| `FAIL Cloud Run region` | Pick a valid region allowed by **P11** |
 | `WARN … will be REPLACED` | A service with that name exists: choose another name |
-| App says **Not found** | File not migrated, or migrated before **P9** |
-| **Migrated**, but Drive says **Request access** | `DrivePermissionRestricted` (**P11**): ask the owner to share |
-| Older link: "can't be decoded offline" | Run the link collection (**P12**) while SharePoint is on |
+| App says **Not found** | File not migrated, or migrated before **P10** |
+| **Migrated**, but Drive says **Request access** | `DrivePermissionRestricted` (**P12**): ask the owner to share |
+| Older link: "can't be decoded offline" | Run the link collection (**P13**) while SharePoint is on |
 
 ---
 
@@ -494,14 +551,14 @@ Run it 🔁 after each migration wave, 🔁 a few days before cutover, and 🔁 
 - Robot accounts have **minimum access**: read-only on the audit log, write only to the app's own tables.
 - The audit log is **never modified**.
 - Every lookup is **logged** (who searched what) in Cloud Logging.
-- The optional Microsoft app (P12) is **read-only**, and its secret is **never stored in files**.
+- The optional Microsoft app (P13) is **read-only**, and its secret is **never stored in files**.
 
 ---
 
 ## ✍️ Sign-off checklist
-- [ ] All prerequisites P1–P11 done (P12 if older links matter)
+- [ ] All prerequisites P1–P12 done (P13 if older links matter)
 - [ ] `./install.sh` finished and printed the App URL
 - [ ] A test link returns **Migrated**
 - [ ] App URL shared with employees
-- [ ] Link collection scheduled before SharePoint shutdown (P12)
+- [ ] Link collection scheduled before SharePoint shutdown (P13)
 - [ ] `deploy.env` saved safely; alert email confirmed
