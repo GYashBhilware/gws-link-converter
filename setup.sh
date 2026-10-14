@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Idempotent provisioning + deploy for the SharePoint/OneDrive -> Drive link finder.
+# Idempotent provisioning + deploy for LinkFinder (SharePoint/OneDrive -> Drive links).
 # All customer-specific values come from a config file (default ./deploy.env),
 # normally created by ./install.sh. Safe to re-run.
 #
@@ -70,10 +70,10 @@ ensure_sa() {  # name, display
 }
 
 step_iam() {
-  ensure_sa "${NAME_PREFIX}-app" "Link finder web app (read-only BigQuery)"
-  ensure_sa "${NAME_PREFIX}-sync" "Link finder sync job (writes ${DATASET})"
-  ensure_sa "${NAME_PREFIX}-scheduler" "Link finder scheduler (runs sync job)"
-  ensure_sa "${NAME_PREFIX}-build" "Link finder Cloud Build"
+  ensure_sa "${NAME_PREFIX}-app" "LinkFinder web app (read-only BigQuery)"
+  ensure_sa "${NAME_PREFIX}-sync" "LinkFinder sync job (writes ${DATASET})"
+  ensure_sa "${NAME_PREFIX}-scheduler" "LinkFinder scheduler (runs sync job)"
+  ensure_sa "${NAME_PREFIX}-build" "LinkFinder Cloud Build"
   # Project-level: only permission to run query jobs (jobs run in PROJECT).
   local sa
   for sa in "$APP_SA" "$SYNC_SA"; do
@@ -184,7 +184,7 @@ step_alerts() {
             --format='value(name)' | head -1)
   if [[ -z "$channel" ]]; then
     channel=$($G beta monitoring channels create --type=email \
-              --display-name="Link finder alerts (${ALERT_EMAIL})" \
+              --display-name="LinkFinder alerts (${ALERT_EMAIL})" \
               --channel-labels="email_address=${ALERT_EMAIL}" --format='value(name)')
   fi
   local f name tmp

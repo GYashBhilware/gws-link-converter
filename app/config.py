@@ -16,7 +16,7 @@ Optional:
 import os
 import re
 
-DEFAULT_TITLE = "SharePoint / OneDrive → Google Drive link finder"
+DEFAULT_TITLE = "LinkFinder"
 _TABLE_RE = re.compile(r"^[a-z][a-z0-9.:-]{4,62}\.[A-Za-z0-9_]{1,1024}\.[A-Za-z0-9_$-]{1,1024}$")
 
 

@@ -39,7 +39,7 @@ def main():
   overall = "FAILED" if failed else ("DRY RUN OK" if mode == "dry-run" else "SUCCESS")
 
   width = max([len(r[2]) for r in rows] + [10])
-  lines = [f"Link Finder install summary - {time.strftime('%Y-%m-%d %H:%M:%S %Z')}",
+  lines = [f"LinkFinder install summary - {time.strftime('%Y-%m-%d %H:%M:%S %Z')}",
            f"Mode: {mode}    Result: {overall}    "
            f"({counts['PASS']} pass, {counts['WARN']} warn, {counts['FAIL']} fail)", ""]
   order = {s: i for i, s in enumerate(STAGES)}

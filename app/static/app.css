@@ -27,3 +27,5 @@ th { color:var(--muted); font-weight:500; font-size:13px; }
 .muted { color:var(--muted); } .small { font-size:13px; }
 .warn { color:var(--amber); }
 .error { color:var(--red); }
+.tagline { color:var(--muted); font-size:14px; margin-top:2px; }
+footer.credit { text-align:center; color:var(--muted); font-size:12px; padding:16px 0 24px; }

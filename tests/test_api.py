@@ -49,7 +49,7 @@ class ApiDevModeTest(unittest.TestCase):
     self.assertEqual(r.headers["x-content-type-options"], "nosniff")
 
   def test_index_and_static(self):
-    self.assertIn("link finder", self.client.get("/").text)
+    self.assertIn("LinkFinder", self.client.get("/").text)
     self.assertEqual(self.client.get("/static/app.js").status_code, 200)
 
   def test_lookup_found(self):
@@ -90,6 +90,13 @@ class ApiDevModeTest(unittest.TestCase):
     r = self.client.get("/api/folder", params={"url": ROOT + "/Meetings"}).json()
     self.assertEqual(r["folder"]["status"], "FOUND")
     self.assertEqual(len(r["children"]), 1)
+
+  def test_branding_and_credit(self):
+    html = self.client.get("/").text
+    self.assertIn("<title>LinkFinder</title>", html)
+    self.assertIn("Developed by Yabhi", html)
+    self.assertNotIn("can't be resolved", html)
+    self.assertEqual(self.client.get("/api/me").json()["app_title"], "LinkFinder")
 
   def test_me_custom_title(self):
     with mock.patch.dict(os.environ, {"APP_TITLE": "Contoso link finder"}):

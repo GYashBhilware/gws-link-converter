@@ -1,10 +1,10 @@
-# Link Finder: one-pager
+# LinkFinder: one-pager
 **Keep every old SharePoint / OneDrive link working after moving to Google Drive.**
 
 ## The problem
 Files move to Google Drive with Google's **Data Migration service**, but the **old SharePoint / OneDrive links** in emails, chats, documents and Outlook "modern attachments" don't. Once SharePoint is switched off, they're dead.
 
-## How Link Finder solves it
+## How LinkFinder solves it
 1. **Google's own record:** for every migrated file, Google logs the **old link → new Drive link** in the Workspace audit log.
 2. **Automatic collection:** BigQuery Export plus a 5-minute sync turn that log into a lookup table in the customer's project.
 3. **Any link works:** address-bar, Office viewer, **sharing links and Outlook modern attachments**.
@@ -12,7 +12,7 @@ Files move to Google Drive with Google's **Data Migration service**, but the **o
 5. **Survives SharePoint shutdown:** answers come from Google's record, not from SharePoint.
 
 ## Architecture
-![Link Finder architecture](docs/link-finder-architecture.png)
+![LinkFinder architecture](docs/link-finder-architecture.png)
 
 ## What you need to have this in place
 | Area | Requirement |

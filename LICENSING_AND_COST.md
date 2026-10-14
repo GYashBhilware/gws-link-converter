@@ -1,8 +1,8 @@
-# Link Finder: licensing, product requirements and cost estimate
+# LinkFinder: licensing, product requirements and cost estimate
 *SharePoint / OneDrive link → Google Drive link*
 
 ## In short
-1. **Link Finder itself costs nothing.** There's no license and no Marketplace purchase; you receive the package.
+1. **LinkFinder itself costs nothing.** There's no license and no Marketplace purchase; you receive the package.
 2. You need a **Google Workspace edition that includes BigQuery Export** (for example Enterprise Standard / Plus).
 3. You need a **Google Cloud project with a billing account**. You pay only for what the app uses (pay as you go).
 4. **Example:** for **5,000 people using it every day**, expect roughly **$1–3 per day** with the recommended settings (about **$35–80 per month**), depending on how much people use it. Details in section 4.
@@ -21,7 +21,7 @@ The app reads the Workspace **audit log**, which Google copies into BigQuery thr
 
 📖 Always confirm with Google's current list: https://support.google.com/a/answer/9079365
 
-- **License level:** your **organization's edition**. Users don't need an extra add-on to use Link Finder.
+- **License level:** your **organization's edition**. Users don't need an extra add-on to use LinkFinder.
 - **Migration tool:** the files must be moved with Google's **Data Migration service** (Admin console → Data → Data import & export → Data migration). It's part of Google Workspace, not a separate purchase. Confirm it's available for your edition and source (SharePoint Online / OneDrive).
 - **How to check your edition:** Admin console → **Billing → Subscriptions**.
 
@@ -34,7 +34,7 @@ The app reads the Workspace **audit log**, which Google copies into BigQuery thr
 ### 1.3 Microsoft 365 (optional, no purchase)
 - To collect older-format sharing links before SharePoint is switched off, an admin creates a free **Microsoft Entra app registration** with read-only permission (`Sites.Read.All`). Nothing to buy.
 
-### 1.4 Link Finder (no purchase)
+### 1.4 LinkFinder (no purchase)
 - The package (code, installer, guides) is provided to you. It runs **entirely in your own Google Cloud project**.
 
 ### 1.5 Admin roles needed (not purchases)
@@ -48,7 +48,7 @@ The app reads the Workspace **audit log**, which Google copies into BigQuery thr
 ## 2. Product requirements (what the app runs on)
 
 ### 2.1 Google Cloud products used
-| Product | What Link Finder uses it for | How it's billed |
+| Product | What LinkFinder uses it for | How it's billed |
 |---|---|---|
 | **BigQuery** | Stores the Workspace audit log (from the export) and the app's lookup tables; answers lookups | Data **read by queries** (per TiB) and data **stored** (per GiB per month). Free: first 1 TiB of queries and 10 GiB of storage per month |
 | **Cloud Run** | Runs the website and the 5-minute copy job | CPU and memory time **while working**, plus per request. **Scales to zero** when unused. Free monthly allowance (e.g. 2 million requests) |
@@ -136,7 +136,7 @@ Other assumptions:
 | 1 | Workspace edition with **BigQuery Export** | Upgrade only if you're on an edition without it |
 | 2 | Google Workspace **Data Migration service** | Included in Workspace (confirm availability) |
 | 3 | Google Cloud **billing account** | No purchase, pay as you go |
-| 4 | Link Finder app | ❌ No |
+| 4 | LinkFinder app | ❌ No |
 | 5 | Microsoft Entra app (optional) | ❌ No |
 | 6 | Expected running cost, 5,000 daily users | ≈ $1–3 per day with recommended settings |
 

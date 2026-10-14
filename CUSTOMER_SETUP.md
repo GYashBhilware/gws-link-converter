@@ -1,10 +1,10 @@
-# Link Finder: customer setup guide
+# LinkFinder: customer setup guide
 *SharePoint / OneDrive link → Google Drive link*
 
 ## What this app does (in one minute)
 After you move files from **SharePoint / OneDrive** to **Google Drive**, people still have **old links** in emails, chats and documents.
 
-With **Link Finder**, an employee **pastes an old link** and gets the **new Google Drive link** of the same file. This includes links sent as Outlook "modern attachments".
+With **LinkFinder**, an employee **pastes an old link** and gets the **new Google Drive link** of the same file. This includes links sent as Outlook "modern attachments".
 
 It runs **inside your own Google Cloud project**. Your data never leaves your organization.
 
@@ -33,7 +33,7 @@ flowchart LR
     SCH["Cloud Scheduler - every 5 min + nightly"]
     JOB["Cloud Run job - sync"]
     IDX[("BigQuery: migration_lookup - lookup tables")]
-    APP["Cloud Run service - Link Finder website"]
+    APP["Cloud Run service - LinkFinder website"]
     IAP["Identity-Aware Proxy - Google sign-in"]
     MON["Cloud Monitoring - email alerts"]
   end
@@ -77,7 +77,7 @@ In plain words:
 sequenceDiagram
   participant E as Employee
   participant G as IAP sign-in
-  participant A as Link Finder
+  participant A as LinkFinder
   participant L as Lookup tables
   participant R as Export table
   E->>G: open the app
@@ -368,7 +368,7 @@ All 10 names should be in the list.
 
 **Steps (Microsoft Entra admin):**
 1. Open https://entra.microsoft.com → **Applications → App registrations → New registration**.
-2. **Name:** `Link Finder (read-only)` → **Accounts in this organizational directory only** → **Register**.
+2. **Name:** `LinkFinder (read-only)` → **Accounts in this organizational directory only** → **Register**.
 3. Copy the **Application (client) ID** and the **Directory (tenant) ID**.
 4. **API permissions → Add a permission → Microsoft Graph → Application permissions** → tick **`Sites.Read.All`** → **Add**.
 5. Click **Grant admin consent for <your tenant>** → **Yes**.
@@ -400,7 +400,7 @@ All 10 names should be in the list.
 
 ---
 
-# Stage 2 — Install Link Finder (about 15 minutes)
+# Stage 2 — Install LinkFinder (about 15 minutes)
 
 ### Step 1: Open Cloud Shell
 Console → your project → click **`>_` (Activate Cloud Shell)** at the top right.

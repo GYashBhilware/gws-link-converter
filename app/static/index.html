@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SharePoint → Google Drive link finder</title>
+  <title>LinkFinder</title>
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
   <header>
-    <h1 id="app-title">SharePoint / OneDrive → Google Drive link finder</h1>
+    <h1 id="app-title">LinkFinder</h1>
+    <div class="tagline">Find the Google Drive copy of any SharePoint / OneDrive link</div>
     <div id="me" class="muted"></div>
   </header>
 
@@ -52,11 +53,12 @@
     </section>
 
     <p class="muted small">
-      Data comes from the Google Workspace Data Migration audit log. Sharing links
-      (<code>/:x:/g/…?e=…</code>) can't be resolved; open them and paste the address-bar URL instead.
-      Having the Drive link doesn't grant access; normal Drive sharing still applies.
+      Data comes from the Google Workspace Data Migration audit log. Address-bar links, Office viewer
+      links, sharing links and Outlook modern attachments are supported. Having the Drive link doesn't
+      grant access; normal Drive sharing still applies.
     </p>
   </main>
+  <footer class="credit">LinkFinder · Developed by Yabhi</footer>
   <script src="/static/app.js"></script>
 </body>
 </html>

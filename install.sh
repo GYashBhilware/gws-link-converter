@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Interactive installer for the SharePoint/OneDrive -> Google Drive link finder.
+# Interactive installer for LinkFinder (SharePoint/OneDrive -> Google Drive links).
 # Run in Google Cloud Shell (or any shell with gcloud + python3) as a project Owner.
 #
 #   ./install.sh                     # ask questions, write deploy.env, preflight, deploy
@@ -93,7 +93,7 @@ if [[ $INTERACTIVE == 1 ]]; then
   # Re-running: previous answers become the defaults.
   # shellcheck disable=SC1090
   [[ -f "$CONFIG" ]] && source "$CONFIG"
-  bold "SharePoint/OneDrive -> Google Drive link finder: installer"
+  bold "LinkFinder installer (SharePoint/OneDrive -> Google Drive links) - developed by Yabhi"
   echo "Signed in as: $(gcloud config get-value account 2>/dev/null)"
   echo "Press Enter to accept the [default]."
   echo
@@ -166,7 +166,7 @@ EOF
   q() { local v=${!1}; printf "%s='%s'\n" "$1" "${v//\'/\'\\\'\'}"; }  # KEY='value'
   umask 077
   {
-    echo "# Link finder deployment config - written by install.sh on $(date -u +%FT%TZ)"
+    echo "# LinkFinder deployment config - written by install.sh on $(date -u +%FT%TZ)"
     echo "# Re-run ./install.sh to change, or edit and run ./install.sh --config $CONFIG"
     for k in PROJECT_ID PROJECT_NUMBER REGION SERVICE_NAME NAME_PREFIX JOB_NAME \
              EXPORT_TABLE BQ_LOCATION INDEX_DATASET ALLOWED_DOMAINS SYNC_CRON CATCHUP_CRON \
@@ -191,7 +191,7 @@ fi
 # shellcheck disable=SC1090
 source "$CONFIG"
 start_log
-echo "=== Link Finder installer: mode=$MODE, $(date -u +%FT%TZ), config=$CONFIG ==="
+echo "=== LinkFinder installer: mode=$MODE, $(date -u +%FT%TZ), config=$CONFIG ==="
 sed 's/^/  /' "$CONFIG"
 
 if [[ $MODE == verify ]]; then

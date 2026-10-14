@@ -1,10 +1,10 @@
-# Link Finder: Technical & Administration Guide
-*For IT administrators, developers and support teams who configure, operate or extend Link Finder.*
+# LinkFinder: Technical & Administration Guide
+*For IT administrators, developers and support teams who configure, operate or extend LinkFinder.*
 
 > End users and first-time installers should start with **CUSTOMER_SETUP.md** (prerequisites and install). This document is the technical reference.
 
 ## 1. Purpose
-Link Finder maps **SharePoint Online / OneDrive links** to the **Google Drive links** of the same items after a Google Workspace **Data Migration**. It reads the Workspace audit log (exported to BigQuery), keeps an incremental lookup index, and serves a small web app behind Google sign-in (Identity-Aware Proxy).
+LinkFinder maps **SharePoint Online / OneDrive links** to the **Google Drive links** of the same items after a Google Workspace **Data Migration**. It reads the Workspace audit log (exported to BigQuery), keeps an incremental lookup index, and serves a small web app behind Google sign-in (Identity-Aware Proxy).
 
 | Item | Value |
 |---|---|
@@ -295,4 +295,4 @@ GCP_PROJECT=$PROJECT_ID BQ_SOURCE_TABLE=$EXPORT_TABLE BQ_DATASET=$INDEX_DATASET 
 - Sharing links resolve only if their token layout is decodable or they were collected before SharePoint was switched off.
 - SharePoint links of files not migrated by the Data Migration service aren't covered.
 - Single tenant per installation; users outside the project's organization can't sign in.
-- Link Finder returns links; it doesn't grant Drive access.
+- LinkFinder returns links; it doesn't grant Drive access.
