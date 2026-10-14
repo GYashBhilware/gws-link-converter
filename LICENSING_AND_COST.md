@@ -5,7 +5,10 @@
 1. **LinkFinder itself costs nothing.** There's no license and no Marketplace purchase; you receive the package.
 2. You need a **Google Workspace edition that includes BigQuery Export** (for example Enterprise Standard / Plus).
 3. You need a **Google Cloud project with a billing account**. You pay only for what the app uses (pay as you go).
-4. **Example:** for **5,000 people using it every day**, the current version costs roughly **$2–10 per day** for light to typical use (about **$60–280 per month**). A planned optimization brings typical use down to about **$3 per day**. Details in section 4.
+4. **Example:** for **5,000 people using it every day**, the current version costs from about **$9 per day** (small migration, ~100,000 files) to about **$135 per day** (large migration, ~5 million files). A planned optimization brings this down to about **$3–7 per day**. Details in section 4.
+
+> [!WARNING]
+> **All costs in this document are estimates, not quotes. Actual costs may be higher**, depending on how your users use the app, how many files you migrate, your audit-log volume, region, and prices at the time. Please follow the cost best practices in section 5 (budget alerts, quotas, regular reviews) from day one.
 
 ## 1. Licensing: what you need
 
@@ -68,70 +71,59 @@ The app reads the Workspace **audit log**, which Google copies into BigQuery thr
 | Users | Google accounts in your allowed Workspace domains |
 
 ## 3. What drives the cost
-1. **Lookups.** Each lookup reads a small amount from BigQuery, but Google bills a **minimum of 10 MB per table** for each query.
-2. **The copy job** runs **288 times a day** (every 5 minutes).
-3. **Audit log size.** Your Workspace audit log grows with company size and activity (all apps, not only migrations). It affects storage and how much the copy job reads.
-4. **"Not found" links** (live check). For links not yet in its lookup tables, the app also searches the newest audit-log rows, so files migrated in the last few minutes are found immediately. This is the **largest cost** for big companies. The planned optimization limits it (section 4.3).
-5. **Website traffic** (Cloud Run) is small, because it scales to zero.
+1. **Number of migrated files** (the biggest factor). Every lookup searches LinkFinder's lookup table, and BigQuery charges by the amount of data a search reads. The more files you migrated, the bigger the table, and in the current version **the more each lookup costs** (section 4.2).
+2. **Number of lookups.** More users, or more links per user, means more searches. Bulk lookups (up to 200 links) read about as much as a single one.
+3. **"Not found" links.** For links not yet in the lookup table, the app also checks the newest audit-log rows, so files migrated minutes ago are found immediately. That extra check reads part of the audit log every time.
+4. **The copy job** runs 288 times a day. Each run reads the last 1–2 days of audit log (more during active migration waves).
+5. **Audit log size and retention.** Your Workspace audit log (all apps, not only migrations) is stored in BigQuery and grows every day.
+6. **Website traffic** (Cloud Run) is small, because it scales to zero when unused.
 
 ## 4. Example: 5,000 people using it every day
 
-### 4.1 Assumptions
-| Assumption | Light | Typical | Heavy |
-|---|---|---|---|
-| People using it per day | 5,000 | 5,000 | 5,000 |
-| Lookups per person per day | 1 | 3 | 10 |
-| Lookups per day (total) | 5,000 | 15,000 | 50,000 |
-| Links not found (not migrated, typos) | 10% | 20% | 30% |
-| Audit-log events per person per day | 100 | 300 | 1,000 |
+> [!WARNING]
+> **Estimate only.** These numbers come from usage measured on a test installation plus a 5-million-file load test, scaled up with Google's published prices. **Real costs can be higher.** Use them for planning, set a budget alert (section 5), and confirm with the Google Cloud pricing calculator: https://cloud.google.com/products/calculator
 
-Other assumptions:
-- Each person opens the app once a day (about 4 small page requests plus their lookups).
-- Copy job every 5 minutes.
-- **US prices** (BigQuery on-demand $6.25 per TiB read; storage $0.02 per GiB per month; standard Cloud Run rates).
-- Free monthly allowances are subtracted.
-- Usage figures (bytes billed per copy run and per lookup) were **measured on a running installation** and scaled up.
+### 4.1 Assumptions ("typical" usage)
+| Assumption | Value |
+|---|---|
+| People using it per day | 5,000 (each opens the app once) |
+| Lookups per person per day | 3 (15,000 lookups a day) |
+| Links not found (not migrated, typos) | 20% |
+| Audit-log events per person per day | 300 |
+| Prices | US region: BigQuery $6.25 per TiB read (first 1 TiB/month free), storage $0.02 per GiB/month, standard Cloud Run rates; free monthly allowances subtracted |
 
-### 4.2 Result: cost per day and per month (USD, estimate)
-| Version | Light | Typical | Heavy |
+### 4.2 Result: cost per day (and per month) by migration size
+| Files migrated | Data read per lookup (current) | **Current version** | Planned optimization (not yet released) |
 |---|---|---|---|
-| ✅ **Current version** (what LinkFinder does today) | **≈ $2.00 / day** (≈ $60 / month) | **≈ $9.40 / day** (≈ $280 / month) | **≈ $95 / day** (≈ $2,870 / month) |
-| 🔜 Planned optimization (not yet released: live check limited, single lookup table) | ≈ $1.10 / day (≈ $33 / month) | ≈ $2.65 / day (≈ $80 / month) | ≈ $8 / day (≈ $245 / month) |
+| 100,000 | ≈ 30 MB (BigQuery minimum) | **≈ $9 / day** (≈ $280 / month) | ≈ $2.65 / day (≈ $80 / month) |
+| 1 million | ≈ 300 MB | **≈ $33 / day** (≈ $985 / month) | ≈ $2.90 / day (≈ $87 / month) |
+| 5 million | ≈ 1.5 GB (measured) | **≈ $137 / day** (≈ $4,100 / month) | ≈ $7.25 / day (≈ $220 / month) |
+| 10 million | ≈ 3 GB | **≈ $265 / day** (≈ $8,000 / month) | ≈ $12.70 / day (≈ $380 / month) |
+
+**How these were checked:** a temporary table with **5 million migrated files** (3 GB) was loaded into BigQuery and the app's real lookup query was run against it. Google **billed ≈ 1.5 GB for a single lookup** (≈ 2 GB for 10 or 200 links). The same lookup on a table organized the "optimized" way was billed **≈ 64 MB**. Other sizes are scaled from these measurements.
+
+**What scales the numbers:** cost grows roughly in line with the number of lookups. Half the usage (1–2 lookups per person) costs about half; three times the usage costs about three times as much.
 
 > [!IMPORTANT]
-> The **current version** row is what an installation costs today. The planned optimization row shows the expected effect of a change that is **not yet released**. Large organizations ("Heavy" usage) should wait for it, or ask for it, before rollout.
+> **Large migrations (more than about 1 million files): plan for the optimization before rollout.**
+> - In the current version, lookup cost rises with the number of files.
+> - Each lookup also has a built-in safety cap of 2 GiB. Above roughly **6 million files**, single lookups would reach that cap and be refused until the optimization is in place.
 
-### 4.3 Where the money goes ("Typical", 15,000 lookups a day)
-| Item | Current version | Planned optimization |
-|---|---|---|
-| BigQuery: lookups | $2.56 | $0.85 |
-| BigQuery: live search for "not found" links | $5.03 | $0.00 (off) |
-| BigQuery: copy job (288 runs) | $0.76 | $0.76 |
-| BigQuery: app start / freshness check | $0.28 | $0.28 |
-| Cloud Run (website) | $1.02 | $1.02 |
-| BigQuery storage (audit log, after 1 year) | $0.12 | $0.12 |
-| Scheduler, logs, alerts | $0.02 | $0.02 |
-| Free monthly allowances (per day) | −$0.41 | −$0.41 |
-| **Total per day** | **≈ $9.40** | **≈ $2.65** |
+### 4.3 What the planned optimization changes
+- The lookup table is organized by link and by file ID, so each lookup reads only a few tens of MB instead of the whole table.
+- The extra "newest rows" check for links not found is limited. A file migrated **in the last few minutes** becomes findable at the next copy run (within 5 minutes) instead of instantly.
+- Nothing else changes for users.
 
-**What the planned optimization will change for users:** a file migrated **in the last few minutes** becomes findable at the next copy run (within 5 minutes), instead of instantly. Nothing else changes.
-
-> [!NOTE]
-> These are **estimates**, not quotes. Real cost depends on how people use the app, the size of your audit log, your region (prices outside the US can differ), and any discounts on your billing account. For an exact figure, use the Google Cloud pricing calculator: https://cloud.google.com/products/calculator
-
-### 4.4 Other company sizes (planned optimization, "Typical" usage, rough guide)
-| Daily users | Lookups / day | Approx. cost / day | Approx. cost / month |
-|---|---|---|---|
-| 500 | 1,500 | ≈ $0.10 (mostly covered by free allowances) | ≈ $2 |
-| 5,000 | 15,000 | ≈ $2.65 | ≈ $80 |
-| 20,000 | 60,000 | ≈ $11 | ≈ $340 |
-
-## 5. Keep the cost under control
-1. **Set a budget alert** (5 minutes): Google Cloud console → **Billing → Budgets & alerts → Create budget** → choose the project → set a monthly amount (e.g. $150) → alerts at 50%, 90% and 100% → **Finish**. You get an email if spending rises.
-2. **Ask for the planned optimization** (live check limited, single lookup table) before rolling out to a large organization.
-3. **Copy job every 15 minutes** instead of 5, if a short delay is acceptable (saves a little more).
-4. **Audit log retention:** the audit log export is usually the largest storage item over time. Ask your Google Cloud admin whether to keep it indefinitely or set a retention period in BigQuery, in line with your compliance rules.
-5. **Remove it when the project ends:** `./uninstall.sh --yes` stops all app costs. The audit-log export stays under your control.
+## 5. Cost best practices (please follow from day one)
+1. **Set a budget alert** (5 minutes): Google Cloud console → **Billing → Budgets & alerts → Create budget** → choose the project → set a monthly amount → alerts at 50%, 90% and 100%. You get an email if spending rises.
+2. **Cap BigQuery usage with a quota**: Google Cloud console → **IAM & Admin → Quotas** → search **BigQuery API, "Query usage per day"** → set a daily limit for the project (for example 2–5 TiB). Queries above the limit are refused instead of billed.
+3. **Review the bill weekly** during rollout (Billing → Reports, filter by project). Compare it with section 4.
+4. **Remember that free allowances are shared.** The free monthly BigQuery and Cloud Run allowances apply per billing account. If other projects already use them, LinkFinder's cost is higher than shown.
+5. **Large migration (> 1 million files)?** Ask for the planned optimization before rolling out to everyone, or start with a pilot group.
+6. **Keep lookups purposeful.** Bulk lookups are efficient for many links, but repeated refreshes of the same list cost the same each time.
+7. **Choose the region deliberately.** Prices differ by region. Keep BigQuery and Cloud Run in your preferred location.
+8. **Audit-log retention:** the audit log export is usually the largest storage item over time. Agree a retention period with your compliance team (never shorter than 7 days; LinkFinder's own lookup tables keep the mappings).
+9. **Remove it when the project ends:** `./uninstall.sh --yes` stops all LinkFinder costs. The audit-log export stays under your control.
 
 ## 6. Summary checklist
 | # | Item | Purchase? |
@@ -141,6 +133,6 @@ Other assumptions:
 | 3 | Google Cloud **billing account** | No purchase, pay as you go |
 | 4 | LinkFinder app | ❌ No |
 | 5 | Microsoft Entra app (optional) | ❌ No |
-| 6 | Expected running cost, 5,000 daily users | ≈ $2–10 per day today (light–typical); ≈ $1–3 per day after the planned optimization |
+| 6 | Expected running cost, 5,000 daily users (estimate) | Today: ≈ $9/day (100k files) to ≈ $137/day (5M files); planned optimization: ≈ $3–7/day. **May be higher**; follow section 5 |
 
-*Prices and editions as published by Google at the time of writing. Always confirm current pricing and edition features with Google or your Google partner.*
+*Disclaimer: all costs are estimates based on measured test usage and Google's published prices at the time of writing; actual costs may be higher. Always confirm current pricing and edition features with Google or your Google partner, and monitor your bill.*
