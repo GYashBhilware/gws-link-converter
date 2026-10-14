@@ -17,7 +17,7 @@ from app.normalize import Kind, normalize
 
 DS = config.index_dataset()
 SRC = config.source_table()
-MAX_BULK = int(os.environ.get("MAX_BULK", "200"))
+MAX_BULK = int(os.environ.get("MAX_BULK", "500"))
 _T = f"`{bq.PROJECT}.{DS}"
 _OK = "('SUCCEEDED', 'SUCCEEDED_WITH_WARNINGS')"
 

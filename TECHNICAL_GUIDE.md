@@ -99,7 +99,7 @@ flowchart LR
 | `IAP_AUDIENCE` | ✅ | — | `/projects/<number>/locations/<region>/services/<service>` |
 | `ALLOWED_DOMAIN` | ✅ | — | Allowed domains, `;`-separated |
 | `APP_TITLE` | optional | — | UI heading |
-| `MAX_BULK` | default 200 | — | Max links per bulk request |
+| `MAX_BULK` | default 500 (set via `deploy.env`) | — | Max links per bulk request. Keep ≤ ~800: each request writes one audit log entry listing the inputs, and Cloud Logging entries are limited to 256 KB |
 | `SYNC_OVERLAP_HOURS` | — | default 2 | Re-read window before the watermark |
 
 Missing required values make the service/job **fail at startup** with an explicit error (no silent defaults).
@@ -211,7 +211,7 @@ Finding the Drive link doesn't guarantee access. Items with `DrivePermissionRest
 | `GET /` | — | Web UI |
 | `GET /api/me` | — | `email, max_bulk, app_title, index_last_synced, index_age_seconds` |
 | `GET /api/lookup?url=<link>` | URL ≤ 4096 chars | One **Result** |
-| `POST /api/bulk` | `{"urls": ["…", …]}`, 1–200 links | `{"results": [Result, …]}` |
+| `POST /api/bulk` | `{"urls": ["…", …]}`, 1–500 links (`MAX_BULK`) | `{"results": [Result, …]}` |
 | `GET /api/folder?url=<folder link>` | URL ≤ 4096 chars | `{"folder": Result, "children": [up to 200 items]}` |
 
 **Result fields:** `input, status, message, target_uri, source_uri, item_type, event_status, warning, migrated_at, migrated_by, batch_name, attempts, via (index|live), match (path|sourcedoc|share-harvested|share-decoded|share), share_owner`.

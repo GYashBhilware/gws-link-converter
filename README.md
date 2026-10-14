@@ -1,7 +1,7 @@
 # LinkFinder
 **Find the Google Drive copy of any SharePoint / OneDrive link.** *Developed by Yabhi.*
 
-After files are moved from SharePoint Online / OneDrive to Google Drive with the Google Workspace **Data Migration service**, old links (in emails, chats, documents, bookmarks and Outlook "modern attachments") still point to SharePoint. LinkFinder lets employees paste an old link, or up to 200 at once, and get the Google Drive link of the migrated copy. It keeps working after SharePoint is switched off.
+After files are moved from SharePoint Online / OneDrive to Google Drive with the Google Workspace **Data Migration service**, old links (in emails, chats, documents, bookmarks and Outlook "modern attachments") still point to SharePoint. LinkFinder lets employees paste an old link, or up to 500 at once, and get the Google Drive link of the migrated copy. It keeps working after SharePoint is switched off.
 
 LinkFinder reads the Workspace audit log exported to BigQuery (`<export project>.<dataset>.activity`, records with `record_type = data_migration`), keeps its own lookup tables up to date every 5 minutes, and serves a small web app behind Google sign-in (Identity-Aware Proxy). One installation runs in one organization's own Google Cloud project.
 

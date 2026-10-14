@@ -86,6 +86,30 @@ class ApiDevModeTest(unittest.TestCase):
     too_many = {"urls": [ROOT + f"/{i}" for i in range(self.main.MAX_BULK + 1)]}
     self.assertEqual(self.client.post("/api/bulk", json=too_many).status_code, 400)
 
+  def test_bulk_limit_is_500(self):
+    self.assertEqual(self.main.MAX_BULK, 500)
+    self.assertEqual(self.client.get("/api/me").json()["max_bulk"], 500)
+    self.assertIn('<span id="max-bulk">500</span>', self.client.get("/").text)
+    ok = {"urls": [ROOT + f"/file {i}.pdf" for i in range(500)]}
+    r = self.client.post("/api/bulk", json=ok)
+    self.assertEqual(r.status_code, 200)
+    self.assertEqual(len(r.json()["results"]), 500)
+    too_many = {"urls": [ROOT + f"/file {i}.pdf" for i in range(501)]}
+    r = self.client.post("/api/bulk", json=too_many)
+    self.assertEqual(r.status_code, 400)
+    self.assertIn("500", r.json()["detail"])
+
+  def test_audit_log_entry_fits_cloud_logging_at_500(self):
+    # Worst case: 500 inputs, each truncated to 300 chars in the audit entry.
+    import json as _json
+    import logging
+    long = ROOT + "/" + "x" * 4000 + ".pdf"
+    with self.assertLogs("gws-link-converter", level=logging.INFO) as cm:
+      self.client.post("/api/bulk", json={"urls": [long + str(i) for i in range(500)]})
+    entry = [m for m in cm.output if '"bulk_lookup"' in m][0].split(":", 2)[2]
+    self.assertEqual(_json.loads(entry)["count"], 500)
+    self.assertLess(len(entry.encode()), 256 * 1024)  # Cloud Logging entry size limit
+
   def test_folder(self):
     r = self.client.get("/api/folder", params={"url": ROOT + "/Meetings"}).json()
     self.assertEqual(r["folder"]["status"], "FOUND")

@@ -492,7 +492,7 @@ It checks that the website is running, sign-in is enforced, anonymous visitors a
 # Stage 3 — Roll out
 1. Send employees the **App URL**.
 2. They sign in with their **company Google account**.
-3. They paste an old link: from an email (modern attachment), copied with **"Copy link"**, from the browser address bar, or up to **200 links** at once.
+3. They paste an old link: from an email (modern attachment), copied with **"Copy link"**, from the browser address bar, or up to **500 links** at once.
 4. They get **Migrated** + the new Google Drive link, or a clear reason why not.
 
 ---

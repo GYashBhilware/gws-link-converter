@@ -72,7 +72,7 @@ The app reads the Workspace **audit log**, which Google copies into BigQuery thr
 
 ## 3. What drives the cost
 1. **Number of migrated files** (the biggest factor). Every lookup searches LinkFinder's lookup table, and BigQuery charges by the amount of data a search reads. The more files you migrated, the bigger the table, and in the current version **the more each lookup costs** (section 4.2).
-2. **Number of lookups.** More users, or more links per user, means more searches. Bulk lookups (up to 200 links) read about as much as a single one.
+2. **Number of lookups.** More users, or more links per user, means more searches. Bulk lookups (up to 500 links) read about as much as a single one.
 3. **"Not found" links.** For links not yet in the lookup table, the app also checks the newest audit-log rows, so files migrated minutes ago are found immediately. That extra check reads part of the audit log every time.
 4. **The copy job** runs 288 times a day. Each run reads the last 1–2 days of audit log (more during active migration waves).
 5. **Audit log size and retention.** Your Workspace audit log (all apps, not only migrations) is stored in BigQuery and grows every day.

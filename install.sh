@@ -174,7 +174,7 @@ EOF
       q "$k"
     done
     # Optional overrides carried over from an existing config (advanced).
-    for k in SCHEDULE_NAME CATCHUP_SCHEDULE_NAME SCHEDULER_REGION METRIC_NAME; do
+    for k in SCHEDULE_NAME CATCHUP_SCHEDULE_NAME SCHEDULER_REGION METRIC_NAME MAX_BULK SYNC_MAX_BYTES; do
       [[ -n "${!k:-}" ]] && q "$k"
     done
   } > "$CONFIG"
